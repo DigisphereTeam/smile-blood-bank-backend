@@ -8,33 +8,51 @@ class AuthController {
     createUserHandlers = async (req, res) => {
         try {
             const { first_name, last_name, email, phone_number, password, role = "frontdesk" } = req.body;
-            if (!first_name.trim() || !email.trim() || !phone_number.trim() || !password.trim() || !role.trim()) {
-                return sendErrorResponse(res, 400, "First name, email, phone number, password and role are required.");
+
+            const errors = {};
+
+            if (!first_name || !first_name.trim()) {
+                errors.first_name = "First name is required.";
             }
 
-            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!email || !email.trim()) {
+                errors.email = "Email is required.";
+            } else {
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-            if (!emailRegex.test(email)) {
-                return sendErrorResponse(res, 400, "Invalid email address.");
+                if (!emailRegex.test(email)) {
+                    errors.email = "Invalid email address.";
+                }
             }
 
-            // Phone validation
-            if (!/^[0-9]{10}$/.test(phone_number)) {
-                return sendErrorResponse(res, 400, "Phone number must contain exactly 10 digits");
+            if (!phone_number || !phone_number.trim()) {
+                errors.phone_number = "Phone number is required.";
+            } else if (!/^[0-9]{10}$/.test(phone_number)) {
+                errors.phone_number = "Phone number must contain exactly 10 digits.";
             }
 
-            // Password validation
-            if (password.length < 8) {
-                return sendErrorResponse(res, 400, "Password must be at least 8 characters");
+            if (!password || !password.trim()) {
+                errors.password = "Password is required.";
+            } else if (password.length < 8) {
+                errors.password = "Password must be at least 8 characters.";
             }
 
-            // Role validation
             const allowedRoles = ["admin", "frontdesk", "technical"];
 
-            if (!allowedRoles.includes(role)) {
-                return sendErrorResponse(res, 400, "Invalid role");
+            if (!role || !role.trim()) {
+                errors.role = "Role is required.";
+            } else if (!allowedRoles.includes(role)) {
+                errors.role = "Invalid role.";
             }
 
+            if (Object.keys(errors).length > 0) {
+                return res.status(422).json({
+                    success: false,
+                    statusCode: 422,
+                    message: "Validation failed.",
+                    errors
+                });
+            }
             // Check duplicate email or phone number
             const existingUser = await pool.query(`
                 SELECT id
@@ -83,18 +101,29 @@ class AuthController {
         try {
             const { email, password } = req.body;
 
+            const errors = {};
+
             if (!email || !email.trim()) {
-                return sendErrorResponse(res, 400, "Email is required.");
+                errors.email = "Email is required.";
+            } else {
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+                if (!emailRegex.test(email)) {
+                    errors.email = "Invalid email address.";
+                }
             }
 
             if (!password || !password.trim()) {
-                return sendErrorResponse(res, 400, "Password is required.");
+                errors.password = "Password is required.";
             }
 
-            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-            if (!emailRegex.test(email)) {
-                return sendErrorResponse(res, 400, "Invalid email address.");
+            if (Object.keys(errors).length > 0) {
+                return res.status(422).json({
+                    success: false,
+                    statusCode: 422,
+                    message: "Validation failed.",
+                    errors
+                });
             }
 
             const result = await pool.query(`
@@ -115,20 +144,20 @@ class AuthController {
                 return sendErrorResponse(res, 403, "Your account has been deactivated.");
             }
 
-            const isPasswordMatched = await bcrypt.compare( password,user.password);
+            const isPasswordMatched = await bcrypt.compare(password, user.password);
 
             if (!isPasswordMatched) {
                 return sendErrorResponse(res, 401, "Invalid email or password.");
             }
 
-            const token = jwt.sign({ id: user.id }, appConfig.jwtSecretKey, { expiresIn: "24h",});
+            const token = jwt.sign({ id: user.id }, appConfig.jwtSecretKey, { expiresIn: "24h", });
 
             delete user.password;
 
             return sendSuccessResponse(res, 200, "Login successful.", { token, user }
             );
         } catch (error) {
-            return sendErrorResponse(res , 500 , error.message || "Internal server error")
+            return sendErrorResponse(res, 500, error.message || "Internal server error")
         }
     }
 }
