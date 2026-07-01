@@ -1,13 +1,12 @@
 import pool from "../database/configuration.js";
-import { sendErrorResponse, sendSuccessResponse } from "../utils/sendResponse.js";
+import { sendErrorResponse, sendSuccessResponse, validateRequestBody } from "../utils/sendResponse.js";
 
 class PatientRequisitionController {
     createPatientRequisitionHandler = async (req, res) => {
+        if (!validateRequestBody(req, res)) return;
         const client = await pool.connect();
-
         try {
             await client.query("BEGIN");
-
             const {
                 patient_name,
                 hospital_name,
@@ -31,43 +30,69 @@ class PatientRequisitionController {
             } = req.body;
 
 
-            if (!patient_name)
-                return sendErrorResponse(res, 400, "Patient name is required.");
+            const errors = {};
 
-            if (!hospital_name)
-                return sendErrorResponse(res, 400, "Hospital name is required.");
+            if (!patient_name || !patient_name.trim()) {
+                errors.patient_name = "Patient name is required.";
+            }
 
-            if (!blood_group)
-                return sendErrorResponse(res, 400, "Blood group is required.");
+            if (!hospital_name || !hospital_name.trim()) {
+                errors.hospital_name = "Hospital name is required.";
+            }
 
-            if (!rh_type)
-                return sendErrorResponse(res, 400, "Rh type is required.");
+            if (!blood_group || !blood_group.trim()) {
+                errors.blood_group = "Blood group is required.";
+            }
 
-            if (!["+", "-"].includes(rh_type))
-                return sendErrorResponse(res, 400, "Invalid Rh type.");
+            if (!rh_type || !rh_type.trim()) {
+                errors.rh_type = "Rh type is required.";
+            } else if (!["+", "-"].includes(rh_type)) {
+                errors.rh_type = "Invalid Rh type.";
+            }
 
-            if (!age || age <= 0)
-                return sendErrorResponse(res, 400, "Invalid age.");
+            if (!age) {
+                errors.age = "Age is required.";
+            } else if (age <= 0) {
+                errors.age = "Age must be greater than 0.";
+            }
 
-            if (!gender || !["Male", "Female", "Other"].includes(gender))
-                return sendErrorResponse(res, 400, "Invalid gender.");
+            if (!gender || !gender.trim()) {
+                errors.gender = "Gender is required.";
+            } else if (!["Male", "Female", "Other"].includes(gender)) {
+                errors.gender = "Invalid gender.";
+            }
 
-            if (!diagnosis)
-                return sendErrorResponse(res, 400, "Diagnosis is required.");
+            if (!diagnosis || !diagnosis.trim()) {
+                errors.diagnosis = "Diagnosis is required.";
+            }
 
-            if (!physician_name)
-                return sendErrorResponse(res, 400, "Physician name is required.");
+            if (!physician_name || !physician_name.trim()) {
+                errors.physician_name = "Physician name is required.";
+            }
 
             if (!Array.isArray(components) || components.length === 0) {
-                return sendErrorResponse(res, 400, "At least one component is required.");
+                errors.components = "At least one component is required.";
             }
 
-            if (is_emergency === true && !emergency_details) {
-                return sendErrorResponse(res, 400, "Emergency details required.");
+            if (is_emergency === true && (!emergency_details || !emergency_details.trim())) {
+                errors.emergency_details = "Emergency details are required.";
             }
 
-            if (!Array.isArray(transfusion_indications) || transfusion_indications.length === 0) {
-                return sendErrorResponse(res, 400, "At least one transfusion indication is required.");
+            if (
+                !Array.isArray(transfusion_indications) ||
+                transfusion_indications.length === 0
+            ) {
+                errors.transfusion_indications =
+                    "At least one transfusion indication is required.";
+            }
+
+            if (Object.keys(errors).length > 0) {
+                return res.status(422).json({
+                    success: false,
+                    statusCode: 422,
+                    message: "Validation failed.",
+                    errors
+                });
             }
 
             const patientResult = await client.query(`SELECT nextval('patient_id_seq')`);
@@ -176,7 +201,7 @@ class PatientRequisitionController {
                 `,
                 [requisitionId, ...values]
             ),
-            await client.query(`
+                await client.query(`
                 INSERT INTO patient_requisition_transfusion_indications
                 (requisition_id, indication)
                 VALUES ${indPlaceholders.join(", ")}

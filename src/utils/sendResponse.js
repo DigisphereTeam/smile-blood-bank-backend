@@ -14,3 +14,11 @@ export function sendErrorResponse(res, statusCode, message) {
         message,
     });
 }
+
+export function validateRequestBody(req, res) {
+    if (!req.body) {
+        sendErrorResponse(res, 400, "Request body is required.");
+        return false;
+    }
+    return true;
+};

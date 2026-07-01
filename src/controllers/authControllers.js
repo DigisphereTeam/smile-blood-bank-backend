@@ -2,10 +2,11 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import appConfig from "../config/appConfig.js";
 import pool from "../database/configuration.js";
-import { sendErrorResponse, sendSuccessResponse } from "../utils/sendResponse.js";
+import { sendErrorResponse, sendSuccessResponse, validateRequestBody } from "../utils/sendResponse.js";
 
 class AuthController {
     createUserHandlers = async (req, res) => {
+        if (!validateRequestBody(req, res)) return;
         try {
             const { first_name, last_name, email, phone_number, password, role = "frontdesk" } = req.body;
 
@@ -98,6 +99,7 @@ class AuthController {
         }
     };
     userLoginHandlers = async (req, res) => {
+        if (!validateRequestBody(req, res)) return;
         try {
             const { email, password } = req.body;
 
