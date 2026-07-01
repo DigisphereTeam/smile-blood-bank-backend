@@ -83,11 +83,11 @@ class AuthController {
         try {
             const { email, password } = req.body;
 
-            if (!email.trim()) {
+            if (!email || !email.trim()) {
                 return sendErrorResponse(res, 400, "Email is required.");
             }
 
-            if (!password.trim()) {
+            if (!password || !password.trim()) {
                 return sendErrorResponse(res, 400, "Password is required.");
             }
 
