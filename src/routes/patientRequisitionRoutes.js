@@ -19,6 +19,7 @@ patientRequisitionRoutes.get(
 
 patientRequisitionRoutes.get(
     "/:id",
+    verifyToken,
     patientRequisitionController.getPatientRequisitionByIdHandler
 );
 

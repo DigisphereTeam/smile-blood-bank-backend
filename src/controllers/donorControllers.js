@@ -1,8 +1,9 @@
 import pool from "../database/configuration.js";
-import { sendErrorResponse, sendSuccessResponse } from "../utils/sendResponse.js";
+import { sendErrorResponse, sendSuccessResponse, validateRequestBody } from "../utils/sendResponse.js";
 
 class DonorController {
     createDonorHandler = async (req, res) => {
+        if (!validateRequestBody(req, res)) return;
         try {
             const {
                 donor_code,
@@ -24,36 +25,49 @@ class DonorController {
                 last_donation_date
             } = req.body;
 
-            if (
-                !donor_code?.trim() ||
-                !first_name?.trim() ||
-                !gender?.trim() ||
-                !blood_group?.trim() ||
-                !rh_type?.trim() ||
-                !phone_number?.trim() ||
-                !date_of_birth
-            ) {
-                return sendErrorResponse(
-                    res,
-                    400,
-                    "Required fields are missing."
-                );
+            const errors = {};
+
+            if (!donor_code || !donor_code.trim()) {
+                errors.donor_code = "Donor code is required.";
             }
 
-            if (!["Male", "Female", "Other"].includes(gender)) {
-                return sendErrorResponse(res, 400, "Invalid gender.");
+            if (!first_name || !first_name.trim()) {
+                errors.first_name = "First name is required.";
             }
 
-            if (!["+", "-"].includes(rh_type)) {
-                return sendErrorResponse(res, 400, "Invalid Rh type.");
+            if (!gender || !gender.trim()) {
+                errors.gender = "Gender is required.";
+            } else if (!["Male", "Female", "Other"].includes(gender)) {
+                errors.gender = "Invalid gender.";
             }
 
-            if (!/^[0-9]{10}$/.test(phone_number)) {
-                return sendErrorResponse(
-                    res,
-                    400,
-                    "Phone number must contain exactly 10 digits."
-                );
+            if (!blood_group || !blood_group.trim()) {
+                errors.blood_group = "Blood group is required.";
+            }
+
+            if (!rh_type || !rh_type.trim()) {
+                errors.rh_type = "Rh type is required.";
+            } else if (!["+", "-"].includes(rh_type)) {
+                errors.rh_type = "Invalid Rh type.";
+            }
+
+            if (!phone_number || !phone_number.trim()) {
+                errors.phone_number = "Phone number is required.";
+            } else if (!/^[0-9]{10}$/.test(phone_number)) {
+                errors.phone_number = "Phone number must contain exactly 10 digits.";
+            }
+
+            if (!date_of_birth) {
+                errors.date_of_birth = "Date of birth is required.";
+            }
+
+            if (Object.keys(errors).length > 0) {
+                return res.status(422).json({
+                    success: false,
+                    statusCode: 422,
+                    message: "Validation failed.",
+                    errors
+                });
             }
 
             const existingDonor = await pool.query(

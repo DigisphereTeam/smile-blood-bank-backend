@@ -1,9 +1,10 @@
 import pool from "../database/configuration.js";
-import { sendErrorResponse, sendSuccessResponse } from "../utils/sendResponse.js";
+import { sendErrorResponse, sendSuccessResponse, validateRequestBody } from "../utils/sendResponse.js";
 
 class BloodUnitController {
 
     createBloodUnitHandler = async (req, res) => {
+        if (!validateRequestBody(req, res)) return;
         try {
             const {
                 donor_id,
@@ -15,28 +16,47 @@ class BloodUnitController {
                 volume_ml
             } = req.body;
 
-            if (
-                !donor_id ||
-                !blood_group?.trim() ||
-                !rh_type?.trim() ||
-                !component_id ||
-                !collection_date ||
-                !expiry_date ||
-                !volume_ml
-            ) {
-                return sendErrorResponse(
-                    res,
-                    400,
-                    "All required fields are mandatory."
-                );
+            const errors = {};
+
+            if (!donor_id) {
+                errors.donor_id = "Donor ID is required.";
             }
 
-            if (!["+", "-"].includes(rh_type)) {
-                return sendErrorResponse(res, 400, "Invalid Rh type.");
+            if (!blood_group || !blood_group.trim()) {
+                errors.blood_group = "Blood group is required.";
             }
 
-            if (Number(volume_ml) <= 0) {
-                return sendErrorResponse(res, 400, "Volume must be greater than 0.");
+            if (!rh_type || !rh_type.trim()) {
+                errors.rh_type = "Rh type is required.";
+            } else if (!["+", "-"].includes(rh_type)) {
+                errors.rh_type = "Invalid Rh type.";
+            }
+
+            if (!component_id) {
+                errors.component_id = "Component ID is required.";
+            }
+
+            if (!collection_date) {
+                errors.collection_date = "Collection date is required.";
+            }
+
+            if (!expiry_date) {
+                errors.expiry_date = "Expiry date is required.";
+            }
+
+            if (!volume_ml) {
+                errors.volume_ml = "Volume is required.";
+            } else if (Number(volume_ml) <= 0) {
+                errors.volume_ml = "Volume must be greater than 0.";
+            }
+
+            if (Object.keys(errors).length > 0) {
+                return res.status(422).json({
+                    success: false,
+                    statusCode: 422,
+                    message: "Validation failed.",
+                    errors
+                });
             }
 
             const donor = await pool.query(
@@ -111,22 +131,22 @@ class BloodUnitController {
     };
 
     getBloodUnitsHandler = async (req, res) => {
-    try {
-        const { status } = req.query;
+        try {
+            const { status } = req.query;
 
-        let values = [];
-        let whereClause = "";
+            let values = [];
+            let whereClause = "";
 
-        if (status) {
-            const statusArray = status.split(",").map(s => s.trim());
+            if (status) {
+                const statusArray = status.split(",").map(s => s.trim());
 
-            values.push(statusArray);
+                values.push(statusArray);
 
-            whereClause = `WHERE bu.status = ANY($1)`;
-        }
+                whereClause = `WHERE bu.status = ANY($1)`;
+            }
 
-        const result = await pool.query(
-            `
+            const result = await pool.query(
+                `
             SELECT
                 bu.id,
                 bu.unit_number,
@@ -157,24 +177,24 @@ class BloodUnitController {
 
             ORDER BY bu.created_at DESC;
             `,
-            values
-        );
+                values
+            );
 
-        return sendSuccessResponse(
-            res,
-            200,
-            "Blood units fetched successfully",
-            result.rows
-        );
+            return sendSuccessResponse(
+                res,
+                200,
+                "Blood units fetched successfully",
+                result.rows
+            );
 
-    } catch (error) {
-        return sendErrorResponse(
-            res,
-            500,
-            error.message || "Failed to fetch blood units"
-        );
-    }
-};
+        } catch (error) {
+            return sendErrorResponse(
+                res,
+                500,
+                error.message || "Failed to fetch blood units"
+            );
+        }
+    };
 
     getBloodUnitByIdHandler = async (req, res) => {
         try {
@@ -258,10 +278,12 @@ class BloodUnitController {
     };
 
     updateBloodUnitStatusHandler = async (req, res) => {
+        if (!validateRequestBody(req, res)) return;
         try {
             const { id } = req.params;
             const { status } = req.body;
 
+            // Validate path parameter
             if (!id || isNaN(id) || Number(id) <= 0) {
                 return sendErrorResponse(
                     res,
@@ -278,20 +300,21 @@ class BloodUnitController {
                 "Discarded"
             ];
 
-            if (!status) {
-                return sendErrorResponse(
-                    res,
-                    400,
-                    "Status is required."
-                );
+            const errors = {};
+
+            if (!status || !status.trim()) {
+                errors.status = "Status is required.";
+            } else if (!allowedStatuses.includes(status)) {
+                errors.status = "Invalid status.";
             }
 
-            if (!allowedStatuses.includes(status)) {
-                return sendErrorResponse(
-                    res,
-                    400,
-                    `Invalid status.`
-                );
+            if (Object.keys(errors).length > 0) {
+                return res.status(422).json({
+                    success: false,
+                    statusCode: 422,
+                    message: "Validation failed.",
+                    errors
+                });
             }
 
             const result = await pool.query(

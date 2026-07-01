@@ -261,9 +261,11 @@ class PatientRequisitionController {
         }
     };
     updatePatientRequisitionStatusHandler = async (req, res) => {
+        if (!validateRequestBody(req, res)) return;
         const { id } = req.params;
         const { status } = req.body;
 
+        // Validate path parameter
         if (!id || !Number.isInteger(Number(id)) || Number(id) <= 0) {
             return sendErrorResponse(
                 res,
@@ -280,16 +282,21 @@ class PatientRequisitionController {
             "Completed"
         ];
 
-        if (!status) {
-            return sendErrorResponse(res, 400, "Status is required.");
+        const errors = {};
+
+        if (!status || !status.trim()) {
+            errors.status = "Status is required.";
+        } else if (!validStatuses.includes(status)) {
+            errors.status = "Invalid status.";
         }
 
-        if (!validStatuses.includes(status)) {
-            return sendErrorResponse(
-                res,
-                400,
-                `Invalid status.`
-            );
+        if (Object.keys(errors).length > 0) {
+            return res.status(422).json({
+                success: false,
+                statusCode: 422,
+                message: "Validation failed.",
+                errors
+            });
         }
 
         try {
@@ -413,9 +420,11 @@ class PatientRequisitionController {
         }
     };
     updatePatientRequisitionEmergencyHandler = async (req, res) => {
+        if (!validateRequestBody(req, res)) return;
         const { id } = req.params;
         const { is_emergency, emergency_details } = req.body;
 
+        // Validate path parameter separately
         if (!id || !Number.isInteger(Number(id)) || Number(id) <= 0) {
             return sendErrorResponse(
                 res,
@@ -424,23 +433,27 @@ class PatientRequisitionController {
             );
         }
 
+        const errors = {};
+
         if (typeof is_emergency !== "boolean") {
-            return sendErrorResponse(
-                res,
-                400,
-                "is_emergency must be true or false."
-            );
+            errors.is_emergency = "Invalid  is_emergency.";
         }
 
         if (
-            is_emergency &&
+            is_emergency === true &&
             (!emergency_details || !emergency_details.trim())
         ) {
-            return sendErrorResponse(
-                res,
-                400,
-                "Emergency details are required when marking as emergency."
-            );
+            errors.emergency_details =
+                "Emergency details are required when marking as emergency.";
+        }
+
+        if (Object.keys(errors).length > 0) {
+            return res.status(422).json({
+                success: false,
+                statusCode: 422,
+                message: "Validation failed.",
+                errors
+            });
         }
 
         try {
