@@ -18,6 +18,12 @@ patientRequisitionRoutes.get(
 );
 
 patientRequisitionRoutes.get(
+    "/recent",
+    verifyToken,
+    patientRequisitionController.getRecentPatientRequisitionsHandler
+);
+
+patientRequisitionRoutes.get(
     "/:id",
     verifyToken,
     patientRequisitionController.getPatientRequisitionByIdHandler

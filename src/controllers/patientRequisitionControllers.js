@@ -615,6 +615,50 @@ RETURNING *;
             );
         }
     };
+
+    getRecentPatientRequisitionsHandler = async (req, res) => {
+        try {
+            const result = await pool.query(`
+                SELECT
+                    pr.id,
+                    pr.patient_id,
+                    pr.patient_name,
+                    pr.status,
+                    pr.created_at,
+
+                    COALESCE(comp.component_name, '-') AS component
+
+                FROM patient_requisitions pr
+
+                LEFT JOIN (
+                    SELECT DISTINCT ON (prc.requisition_id)
+                        prc.requisition_id,
+                        bc.component_name
+                    FROM patient_requisition_components prc
+                    JOIN blood_components bc
+                        ON bc.id = prc.component_id
+                    ORDER BY prc.requisition_id, prc.id
+                ) comp
+                    ON comp.requisition_id = pr.id
+
+                ORDER BY pr.created_at DESC
+                LIMIT 10;
+            `);
+
+            return sendSuccessResponse(
+                res,
+                200,
+                "Recent patient requisitions fetched successfully.",
+                result.rows
+            );
+        } catch (error) {
+            return sendErrorResponse(
+                res,
+                500,
+                error.message || "Failed to fetch recent patient requisitions."
+            );
+        }
+    };
 }
 
 export default PatientRequisitionController;
