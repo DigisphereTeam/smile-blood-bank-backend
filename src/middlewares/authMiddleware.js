@@ -25,3 +25,13 @@ export const verifyToken = (req, res, next) => {
         return sendErrorResponse(res, 401, "Invalid or expired access token.");
     }
 };
+
+export const requireRequestBody = (req, res, next) => {
+    if (!req.body) {
+        return sendErrorResponse(res, 400, "Request body is required.");
+    }
+    if (typeof req.body !== "object") {
+        return sendErrorResponse(res, 400, "Invalid request body.");
+    }
+    next();
+};
