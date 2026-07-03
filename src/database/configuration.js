@@ -1,15 +1,17 @@
 import pg from "pg";
+import appConfig from "../config/appConfig.js";
+import dbConfig from "../config/dbConfig.js";
 
-const { Pool }= pg;
+const { Pool } = pg;
 
 const pool = new Pool({
-  user: process.env.DB_USER_NAME,
-  host: process.env.DB_HOST,
-  database: process.env.DB_NAME,
-  password: process.env.DB_PASSWORD,
-  port: process.env.DB_PORT,
+  user: dbConfig.user,
+  host: dbConfig.host,
+  database: dbConfig.database,
+  password: dbConfig.password,
+  port: dbConfig.port,
   ssl:
-    process.env.NODE_ENV === "production"
+    appConfig.nodeEnv === "production"
       ? { rejectUnauthorized: false }
       : false,
 });

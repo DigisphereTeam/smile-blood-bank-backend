@@ -1,3 +1,4 @@
+import "dotenv/config";
 import express from 'express';
 import appConfig from './config/appConfig.js';
 import pool from './database/configuration.js';

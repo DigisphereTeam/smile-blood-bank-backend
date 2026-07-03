@@ -626,18 +626,24 @@ RETURNING *;
                     pr.status,
                     pr.created_at,
 
-                    COALESCE(comp.component_name, '-') AS component
+                    COALESCE(comp.components, '[]'::json) AS components
 
                 FROM patient_requisitions pr
 
                 LEFT JOIN (
-                    SELECT DISTINCT ON (prc.requisition_id)
+                    SELECT
                         prc.requisition_id,
-                        bc.component_name
+                        json_agg(
+                            json_build_object(
+                                'id', bc.id,
+                                'component_name', bc.component_name,
+                                'units_required', prc.units_required
+                            )
+                        ) AS components
                     FROM patient_requisition_components prc
-                    JOIN blood_components bc
+                    LEFT JOIN blood_components bc
                         ON bc.id = prc.component_id
-                    ORDER BY prc.requisition_id, prc.id
+                    GROUP BY prc.requisition_id
                 ) comp
                     ON comp.requisition_id = pr.id
 
