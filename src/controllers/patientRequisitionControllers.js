@@ -236,6 +236,179 @@ class PatientRequisitionController {
             client.release();
         }
     };
+    updatePatientRequisitionHandler = async (req, res) => {
+        if (!validateRequestBody(req, res)) return;
+
+        const { requisitionId } = req.params;
+        if (!requisitionId || !Number.isInteger(Number(requisitionId)) || Number(requisitionId) <= 0) {
+            return sendErrorResponse(
+                res,
+                400,
+                "Invalid patient requisition ID."
+            );
+        }
+        const client = await pool.connect();
+
+        try {
+            await client.query("BEGIN");
+
+            // Check if requisition exists
+            const { rowCount } = await client.query(
+                `SELECT 1 FROM patient_requisitions WHERE id = $1`,
+                [requisitionId]
+            );
+
+            if (rowCount === 0) {
+                await client.query("ROLLBACK");
+                return sendErrorResponse(res, 404, "Patient requisition not found.");
+            }
+
+            const {
+                patient_name,
+                hospital_name,
+                blood_group,
+                rh_type,
+                age,
+                gender,
+                diagnosis,
+                ip_number,
+                referred_by,
+                ward_no,
+                previous_transfusion,
+                previous_transfusion_reaction,
+                previous_transfusion_reaction_details,
+                transfusion_indications,
+                components,
+                is_emergency,
+                compatibility_test_type,
+                physician,
+                name,
+                emergency_details
+            } = req.body;
+
+            // Validation
+            const errors = {};
+            if (rh_type && !["+", "-"].includes(rh_type)) errors.rh_type = "Invalid Rh type.";
+            if (gender && !["Male", "Female", "Other"].includes(gender)) errors.gender = "Invalid gender.";
+            if (age && age <= 0) errors.age = "Age must be greater than 0.";
+
+            if (Object.keys(errors).length) {
+                await client.query("ROLLBACK");
+                return res.status(422).json({
+                    success: false,
+                    statusCode: 422,
+                    message: "Validation failed.",
+                    errors
+                });
+            }
+
+            // Dynamic update fields
+            const fields = [];
+            const values = [];
+            let index = 1;
+
+            const addField = (column, value) => {
+                if (value !== undefined) {
+                    fields.push(`${column} = $${index++}`);
+                    values.push(value);
+                }
+            };
+
+            [
+                ["patient_name", patient_name],
+                ["hospital_name", hospital_name],
+                ["blood_group", blood_group],
+                ["rh_type", rh_type],
+                ["age", age],
+                ["gender", gender],
+                ["diagnosis", diagnosis],
+                ["ip_number", ip_number],
+                ["referred_by", referred_by],
+                ["ward_no", ward_no],
+                ["previous_transfusion", previous_transfusion],
+                ["previous_transfusion_reaction", previous_transfusion_reaction],
+                ["previous_transfusion_reaction_details", previous_transfusion_reaction_details],
+                ["is_emergency", is_emergency],
+                ["compatibility_test_type", compatibility_test_type],
+                ["physician", physician],
+                ["name", name],
+                ["emergency_details", emergency_details]
+            ].forEach(([col, val]) => addField(col, val));
+
+            if (fields.length) {
+                values.push(requisitionId);
+                await client.query(
+                    `UPDATE patient_requisitions
+                 SET ${fields.join(", ")}, updated_at = NOW()
+                 WHERE id = $${index}`,
+                    values
+                );
+            }
+
+            // Update Components
+            if (components) {
+                await client.query(
+                    `DELETE FROM patient_requisition_components WHERE requisition_id = $1`,
+                    [requisitionId]
+                );
+
+                if (components.length) {
+                    const placeholders = [];
+                    const componentValues = [];
+
+                    components.forEach((c, i) => {
+                        if (!c.component_id || !c.units_required || !c.required_date_time) {
+                            throw new Error("Invalid component data.");
+                        }
+                        const base = i * 3;
+                        placeholders.push(`($1,$${base + 2},$${base + 3},$${base + 4})`);
+                        componentValues.push(c.component_id, c.units_required, c.required_date_time);
+                    });
+
+                    await client.query(
+                        `INSERT INTO patient_requisition_components
+                     (requisition_id, component_id, units_required, required_date_time)
+                     VALUES ${placeholders.join(",")}`,
+                        [requisitionId, ...componentValues]
+                    );
+                }
+            }
+
+            // Update Transfusion Indications
+            if (transfusion_indications) {
+                await client.query(
+                    `DELETE FROM patient_requisition_transfusion_indications WHERE requisition_id = $1`,
+                    [requisitionId]
+                );
+
+                if (transfusion_indications.length) {
+                    const placeholders = transfusion_indications.map((_, i) => `($1,$${i + 2})`);
+                    await client.query(
+                        `INSERT INTO patient_requisition_transfusion_indications
+                     (requisition_id, indication)
+                     VALUES ${placeholders.join(",")}`,
+                        [requisitionId, ...transfusion_indications]
+                    );
+                }
+            }
+
+            const { rows } = await client.query(
+                `SELECT * FROM patient_requisitions WHERE id = $1`,
+                [requisitionId]
+            );
+
+            await client.query("COMMIT");
+
+            return sendSuccessResponse(res, 200, "Patient requisition updated successfully.", rows[0]);
+
+        } catch (error) {
+            await client.query("ROLLBACK");
+            return sendErrorResponse(res, 500, error.message || "Internal server error");
+        } finally {
+            client.release();
+        }
+    };
+
     getRequisitionStats = async (req, res) => {
         try {
 

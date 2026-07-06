@@ -132,19 +132,35 @@ class BloodUnitController {
 
     getBloodUnitsHandler = async (req, res) => {
         try {
-            const { status } = req.query;
-
-            let values = [];
-            let whereClause = "";
+           const { status, blood_group, rh_type, component_id } = req.query;
+            const conditions = [];
+            const values = [];
 
             if (status) {
                 const statusArray = status.split(",").map(s => s.trim());
-
                 values.push(statusArray);
-
-                whereClause = `WHERE bu.status = ANY($1)`;
+                conditions.push(`bu.status = ANY($${values.length})`);
             }
 
+            if (blood_group) {
+                values.push(blood_group);
+                conditions.push(`bu.blood_group = $${values.length}`);
+            }
+            
+            if (rh_type) {
+                values.push(rh_type);
+                conditions.push(`bu.rh_type = $${values.length}`);
+            }
+
+            if (component_id) {
+                values.push(component_id);
+                conditions.push(`bu.component_id = $${values.length}`);
+            }
+
+            const whereClause = conditions.length
+                ? `WHERE ${conditions.join(" AND ")}`
+                : "";
+            
             const result = await pool.query(
                 `
             SELECT
@@ -158,9 +174,9 @@ class BloodUnitController {
                 bu.status,
                 bu.created_at,
 
-                CONCAT(d.first_name,' ',d.last_name) AS donor_name,
+                CONCAT(d.first_name, ' ', d.last_name) AS donor_name,
                 bc.component_name,
-                CONCAT(u.first_name,' ',u.last_name) AS created_by
+                CONCAT(u.first_name, ' ', u.last_name) AS created_by
 
             FROM blood_units bu
 

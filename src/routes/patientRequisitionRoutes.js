@@ -42,6 +42,12 @@ patientRequisitionRoutes.patch(
 );
 
 patientRequisitionRoutes.patch(
+    "/:requisitionId",
+    verifyToken,
+    patientRequisitionController.updatePatientRequisitionHandler
+);
+
+patientRequisitionRoutes.patch(
     "/:id/emergency",
     verifyToken,
     patientRequisitionController.updatePatientRequisitionEmergencyHandler
