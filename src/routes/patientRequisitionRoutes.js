@@ -1,6 +1,7 @@
 import express from "express";
 import PatientRequisitionController from "../controllers/patientRequisitionControllers.js";
 import { requireRequestBody, verifyToken } from "../middlewares/authMiddleware.js";
+import compatibilityTestRoutes from "./compatibilityRoutes.js";
 
 const patientRequisitionController = new PatientRequisitionController();
 const patientRequisitionRoutes = express.Router();
@@ -63,5 +64,7 @@ patientRequisitionRoutes.patch(
     requireRequestBody,
     patientRequisitionController.updatePatientRequisitionEmergencyHandler
 );
+
+patientRequisitionRoutes.use("/:requisitionId/compatibility-tests" , compatibilityTestRoutes);
 
 export default patientRequisitionRoutes;
