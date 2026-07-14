@@ -153,7 +153,7 @@ export const createDonorWithBloodUnitSchema = Joi.object({
         .messages({
             "any.required": "Collection date is required.",
             "date.base": "Invalid collection date."
-    }),
+        }),
 
     volume_ml: Joi.number()
         .integer()
@@ -171,5 +171,25 @@ export const createDonorWithBloodUnitSchema = Joi.object({
         .allow("", null)
         .messages({
             "string.base": "Invalid remarks."
+        })
+});
+
+export const updateBloodUnitStatusSchema = Joi.object({
+    status: Joi.string()
+        .trim()
+        .valid(
+            'Collected',
+            'Testing',
+            'Ready for Processing',
+            'Processed',
+            'Discarded'
+
+        )
+        .required()
+        .messages({
+            "any.required": "Status is required.",
+            "string.empty": "Status is required.",
+            "string.base" : "Invalis status.",
+            "any.only": "Invalid status."
         })
 });

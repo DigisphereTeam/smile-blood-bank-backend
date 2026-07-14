@@ -1,6 +1,6 @@
 import pool from "../database/configuration.js";
 import { sendErrorResponse, sendSuccessResponse } from "../utils/sendResponse.js";
-import { createBloodUnitComponentsSchema, createBloodUnitSchema } from "../validations/schemas/bloodUnitValidations.js";
+import { createBloodUnitComponentsSchema, createBloodUnitSchema, updateBloodUnitStatusSchema } from "../validations/schemas/bloodUnitValidations.js";
 import validateRequest from "../validations/validateRequest.js";
 
 class BloodUnitController {
@@ -402,43 +402,19 @@ class BloodUnitController {
     };
 
     updateBloodUnitStatusHandler = async (req, res) => {
+        const { id } = req.params;
+
+        // Validate path parameter
+        if (!id || isNaN(id) || Number(id) <= 0) {
+            return sendErrorResponse(
+                res,
+                400,
+                "Invalid blood unit ID."
+            );
+        }
+        const validatedBody = validateRequest(updateBloodUnitStatusSchema, req);
+        const { status } = validatedBody;
         try {
-            const { id } = req.params;
-            const { status } = req.body;
-
-            // Validate path parameter
-            if (!id || isNaN(id) || Number(id) <= 0) {
-                return sendErrorResponse(
-                    res,
-                    400,
-                    "Invalid blood unit ID."
-                );
-            }
-
-            const allowedStatuses = [
-                "Available",
-                "Reserved",
-                "Issued",
-                "Expired",
-                "Discarded"
-            ];
-
-            const errors = {};
-
-            if (!status || !status.trim()) {
-                errors.status = "Status is required.";
-            } else if (!allowedStatuses.includes(status)) {
-                errors.status = "Invalid status.";
-            }
-
-            if (Object.keys(errors).length > 0) {
-                return res.status(422).json({
-                    success: false,
-                    statusCode: 422,
-                    message: "Validation failed.",
-                    errors
-                });
-            }
 
             const result = await pool.query(
                 `
