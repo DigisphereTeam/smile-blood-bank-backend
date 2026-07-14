@@ -415,10 +415,10 @@ export const updatePatientRequisitionSchema = Joi.object({
             "array.min": "At least one component is required."
         })
 })
-.min(1)
-.messages({
-    "object.min": "At least one field is required to update."
-});
+    .min(1)
+    .messages({
+        "object.min": "At least one field is required to update."
+    });
 
 export const updateBloodGroupSchema = Joi.object({
     blood_group: Joi.string()
@@ -430,6 +430,7 @@ export const updateBloodGroupSchema = Joi.object({
             "any.required": "Blood group is required.",
             "string.base": "Invalid blood group.",
             "string.empty": "Blood group is required.",
+            "any.only": "Invalid blood group."
         }),
 
     rh_type: Joi.string()
@@ -439,7 +440,7 @@ export const updateBloodGroupSchema = Joi.object({
         .messages({
             "any.required": "Rh type is required.",
             "string.base": "Invalid rh type.",
-            "string.empty": "Rh type is required."
+            "string.empty": "Rh type is required.",
+            "any.only": "Invalid rh type."
         })
 });
-

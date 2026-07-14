@@ -39,6 +39,7 @@ patientRequisitionRoutes.get(
 patientRequisitionRoutes.patch(
     "/:id/status",
     verifyToken,
+    requireRequestBody,
     patientRequisitionController.updatePatientRequisitionStatusHandler
 );
 
@@ -59,6 +60,7 @@ patientRequisitionRoutes.patch(
 patientRequisitionRoutes.patch(
     "/:id/emergency",
     verifyToken,
+    requireRequestBody,
     patientRequisitionController.updatePatientRequisitionEmergencyHandler
 );
 

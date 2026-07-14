@@ -1,11 +1,11 @@
 import pool from "../database/configuration.js";
-import { sendErrorResponse, sendSuccessResponse, validateRequestBody } from "../utils/sendResponse.js";
+import { sendErrorResponse, sendSuccessResponse } from "../utils/sendResponse.js";
 import { createPatientRequisitionSchema, updateBloodGroupSchema, updatePatientRequisitionSchema } from "../validations/schemas/patientRequisitionValidations.js";
 import validateRequest from "../validations/validateRequest.js";
 
 class PatientRequisitionController {
     createPatientRequisitionHandler = async (req, res) => {
-        validateRequest(createPatientRequisitionSchema, req);
+        const validatedBody = validateRequest(createPatientRequisitionSchema, req);
         const client = await pool.connect();
         try {
             await client.query("BEGIN");
@@ -30,7 +30,7 @@ class PatientRequisitionController {
                 physician,
                 name,
                 emergency_details
-            } = req.body;
+            } = validatedBody;
 
             const patientResult = await client.query(`SELECT nextval('patient_id_seq')`);
             const idNumber = patientResult.rows[0].nextval;
@@ -175,7 +175,7 @@ class PatientRequisitionController {
                 "Invalid patient requisition ID."
             );
         }
-        validateRequest(updatePatientRequisitionSchema, req);
+        const validatedBody = validateRequest(updatePatientRequisitionSchema, req);
         const client = await pool.connect();
 
         try {
@@ -213,7 +213,7 @@ class PatientRequisitionController {
                 physician,
                 name,
                 emergency_details
-            } = req.body;
+            } = validatedBody;
 
             // Dynamic update fields
             const fields = [];
@@ -321,14 +321,13 @@ class PatientRequisitionController {
             client.release();
         }
     };
-
     updatePatientBloodGroupHandler = async (req, res) => {
         const { requisitionId } = req.params;
         if (!requisitionId || !Number.isInteger(Number(requisitionId)) || Number(requisitionId) <= 0) {
             return sendErrorResponse(res, 400, "Invalid patient requisition ID.");
         }
-        validateRequest(updateBloodGroupSchema, req);
-        const { blood_group, rh_type } = req.body;
+        const validatedBody = validateRequest(updateBloodGroupSchema, req);
+        const { blood_group, rh_type } = validatedBody;
         try {
             const { rowCount, rows } = await pool.query(`
                 UPDATE patient_requisitions
@@ -360,7 +359,6 @@ class PatientRequisitionController {
             );
         }
     };
-
     getRequisitionStats = async (req, res) => {
         try {
 
@@ -392,7 +390,6 @@ class PatientRequisitionController {
         }
     };
     updatePatientRequisitionStatusHandler = async (req, res) => {
-        if (!validateRequestBody(req, res)) return;
         const { id } = req.params;
         const { status } = req.body;
 
@@ -434,10 +431,10 @@ class PatientRequisitionController {
                 `
                 UPDATE patient_requisitions
                 SET status = $1,
-    updated_at = CURRENT_TIMESTAMP
+                    updated_at = CURRENT_TIMESTAMP
                 WHERE id = $2
-RETURNING *;
-`,
+                RETURNING *;
+                `,
                 [status, id]
             );
 
@@ -553,7 +550,6 @@ RETURNING *;
         }
     };
     updatePatientRequisitionEmergencyHandler = async (req, res) => {
-        if (!validateRequestBody(req, res)) return;
         const { id } = req.params;
         const { is_emergency, emergency_details } = req.body;
 
@@ -740,7 +736,6 @@ RETURNING *;
             );
         }
     };
-
     getRecentPatientRequisitionsHandler = async (req, res) => {
         try {
             const result = await pool.query(`
