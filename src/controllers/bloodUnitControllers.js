@@ -220,6 +220,7 @@ class BloodUnitController {
     getBloodUnitsHandler = async (req, res) => {
         try {
             const { status, blood_group, rh_type, component_id } = req.query;
+
             const conditions = [];
             const values = [];
 
@@ -241,7 +242,7 @@ class BloodUnitController {
 
             if (component_id) {
                 values.push(component_id);
-                conditions.push(`bu.component_id = $${values.length}`);
+                conditions.push(`buc.component_id = $${values.length}`);
             }
 
             const whereClause = conditions.length
@@ -256,27 +257,47 @@ class BloodUnitController {
                 bu.blood_group,
                 bu.rh_type,
                 bu.collection_date,
-                bu.expiry_date,
+                
                 bu.volume_ml,
                 bu.status,
                 bu.created_at,
 
-                CONCAT(d.first_name, ' ', d.last_name) AS donor_name,
-                bc.component_name,
-                CONCAT(u.first_name, ' ', u.last_name) AS created_by
+                d.name AS donor_name,
+
+                COALESCE(
+                    JSON_AGG(
+                        DISTINCT JSONB_BUILD_OBJECT(
+                            'component_id', bc.id,
+                            'component_name', bc.component_name,
+                            'component_expire_date', buc.expiry_date,
+                            'component_status', buc.status
+                        )
+                    ) FILTER (WHERE bc.id IS NOT NULL),
+                    '[]'
+                ) AS components,
+
+                u.first_name AS created_by
 
             FROM blood_units bu
 
-            JOIN donors d
+            INNER JOIN donors d
                 ON bu.donor_id = d.id
 
-            JOIN blood_components bc
-                ON bu.component_id = bc.id
+            LEFT JOIN blood_unit_components buc
+                ON bu.id = buc.blood_unit_id
 
-            JOIN users u
+            LEFT JOIN blood_components bc
+                ON buc.component_id = bc.id
+
+            INNER JOIN users u
                 ON bu.created_by = u.id
 
             ${whereClause}
+
+            GROUP BY
+                bu.id,
+                d.name,
+                u.first_name
 
             ORDER BY bu.created_at DESC;
             `,
