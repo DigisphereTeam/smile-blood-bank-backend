@@ -333,47 +333,63 @@ class BloodUnitController {
                 );
             }
 
-            const result = await pool.query(
-                `
-                SELECT
-                    bu.*,
+            const result = await pool.query(`
+                    SELECT
+                        bu.*,
 
-                    json_build_object(
-                        'id', d.id,
-                        'donor_code', d.donor_code,
-                        'first_name', d.first_name,
-                        'last_name', d.last_name,
-                        'blood_group', d.blood_group,
-                        'rh_type', d.rh_type,
-                        'phone_number', d.phone_number
-                    ) AS donor,
+                        json_build_object(
+                            'id', d.id,
+                            'donor_code', d.donor_code,
+                            'name', d.name,
+                            'blood_group', d.blood_group,
+                            'rh_type', d.rh_type,
+                            'phone_number', d.phone_number
+                        ) AS donor,
 
-                    json_build_object(
-                        'id', bc.id,
-                        'component_name', bc.component_name
-                    ) AS component,
+                        COALESCE(
+                            json_agg(
+                                DISTINCT jsonb_build_object(
+                                    'id', buc.id,
+                                    'component_id', bc.id,
+                                    'component_name', bc.component_name,
+                                    'component_unit_number', buc.component_unit_number,
+                                    'volume_ml', buc.volume_ml,
+                                    'expiry_date', buc.expiry_date,
+                                    'status', buc.status
+                                )
+                            ) FILTER (WHERE buc.id IS NOT NULL),
+                            '[]'
+                        ) AS components,
 
-                    json_build_object(
-                        'id', u.id,
-                        'first_name', u.first_name,
-                        'last_name', u.last_name,
-                        'email', u.email,
-                        'role', u.role
-                    ) AS created_by
+                        json_build_object(
+                            'id', u.id,
+                            'first_name', u.first_name,
+                            'last_name', u.last_name,
+                            'email', u.email,
+                            'role', u.role
+                        ) AS created_by
 
-                FROM blood_units bu
+                    FROM blood_units bu
 
-                JOIN donors d
-                    ON bu.donor_id = d.id
+                    INNER JOIN donors d
+                        ON bu.donor_id = d.id
 
-                JOIN blood_components bc
-                    ON bu.component_id = bc.id
+                    LEFT JOIN blood_unit_components buc
+                        ON buc.blood_unit_id = bu.id
 
-                JOIN users u
-                    ON bu.created_by = u.id
+                    LEFT JOIN blood_components bc
+                        ON bc.id = buc.component_id
 
-                WHERE bu.id = $1;
-                `,
+                    LEFT JOIN users u
+                        ON u.id = bu.created_by
+
+                    WHERE bu.id = $1
+
+                    GROUP BY
+                        bu.id,
+                        d.id,
+                        u.id;
+                    `,
                 [id]
             );
 
