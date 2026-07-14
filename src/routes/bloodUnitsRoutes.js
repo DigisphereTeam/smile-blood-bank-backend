@@ -1,6 +1,6 @@
 import express from "express";
 import BloodUnitController from "../controllers/bloodUnitControllers.js";
-import { verifyToken } from "../middlewares/authMiddleware.js";
+import { requireRequestBody, verifyToken } from "../middlewares/authMiddleware.js";
 
 const bloodUnitRoutes = express.Router();
 const bloodUnitController = new BloodUnitController();
@@ -8,7 +8,16 @@ const bloodUnitController = new BloodUnitController();
 bloodUnitRoutes.post(
     "/",
     verifyToken,
+    requireRequestBody,
     bloodUnitController.createBloodUnitHandler
+);
+
+// to add blood components of a donor
+bloodUnitRoutes.post(
+    "/:bloodUnitId/components",
+    verifyToken,
+    requireRequestBody,
+    bloodUnitController.createBloodUnitComponentsHandler
 );
 
 bloodUnitRoutes.get(
@@ -26,6 +35,7 @@ bloodUnitRoutes.get(
 bloodUnitRoutes.patch(
     "/:id/status",
     verifyToken,
+    requireRequestBody,
     bloodUnitController.updateBloodUnitStatusHandler
 );
 

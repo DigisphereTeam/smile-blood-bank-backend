@@ -1,66 +1,19 @@
 import pool from "../database/configuration.js";
-import { sendErrorResponse, sendSuccessResponse, validateRequestBody } from "../utils/sendResponse.js";
+import { sendErrorResponse, sendSuccessResponse } from "../utils/sendResponse.js";
+import { createBloodUnitComponentsSchema, createBloodUnitSchema } from "../validations/schemas/bloodUnitValidations.js";
+import validateRequest from "../validations/validateRequest.js";
 
 class BloodUnitController {
 
     createBloodUnitHandler = async (req, res) => {
-        if (!validateRequestBody(req, res)) return;
+        validateRequest(createBloodUnitSchema, req);
         try {
-            const {
-                donor_id,
-                blood_group,
-                rh_type,
-                component_id,
-                collection_date,
-                expiry_date,
-                volume_ml
-            } = req.body;
+            const { donor_id, blood_group, rh_type, collection_date, volume_ml, remarks } = req.body;
 
-            const errors = {};
-
-            if (!donor_id) {
-                errors.donor_id = "Donor ID is required.";
-            }
-
-            if (!blood_group || !blood_group.trim()) {
-                errors.blood_group = "Blood group is required.";
-            }
-
-            if (!rh_type || !rh_type.trim()) {
-                errors.rh_type = "Rh type is required.";
-            } else if (!["+", "-"].includes(rh_type)) {
-                errors.rh_type = "Invalid Rh type.";
-            }
-
-            if (!component_id) {
-                errors.component_id = "Component ID is required.";
-            }
-
-            if (!collection_date) {
-                errors.collection_date = "Collection date is required.";
-            }
-
-            if (!expiry_date) {
-                errors.expiry_date = "Expiry date is required.";
-            }
-
-            if (!volume_ml) {
-                errors.volume_ml = "Volume is required.";
-            } else if (Number(volume_ml) <= 0) {
-                errors.volume_ml = "Volume must be greater than 0.";
-            }
-
-            if (Object.keys(errors).length > 0) {
-                return res.status(422).json({
-                    success: false,
-                    statusCode: 422,
-                    message: "Validation failed.",
-                    errors
-                });
-            }
-
-            const donor = await pool.query(
-                "SELECT id FROM donors WHERE id = $1",
+            const donor = await pool.query(`
+                SELECT id
+                FROM donors
+                WHERE id = $1`,
                 [donor_id]
             );
 
@@ -68,48 +21,45 @@ class BloodUnitController {
                 return sendErrorResponse(res, 404, "Donor not found.");
             }
 
-            const component = await pool.query(
-                "SELECT id FROM blood_components WHERE id = $1",
-                [component_id]
-            );
-
-            if (component.rowCount === 0) {
-                return sendErrorResponse(res, 404, "Blood component not found.");
-            }
 
             const seq = await pool.query(
-                "SELECT nextval('blood_unit_seq') AS seq"
+                `SELECT nextval('blood_unit_seq') AS seq`
             );
 
             const currentYear = new Date().getFullYear();
 
-            const unit_number = `BU-${currentYear}-${String(seq.rows[0].seq).padStart(6, "0")}`;
+            const unit_number = `BU-${currentYear}-${String(
+                seq.rows[0].seq
+            ).padStart(6, "0")}`;
 
+            // Insert Blood Unit
             const result = await pool.query(
                 `
-                INSERT INTO blood_units(
-                    unit_number,
-                    donor_id,
-                    blood_group,
-                    rh_type,
-                    component_id,
-                    collection_date,
-                    expiry_date,
-                    volume_ml,
-                    created_by
-                )
-                VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)
-                RETURNING *;
-                `,
+            INSERT INTO blood_units
+            (
+                unit_number,
+                donor_id,
+                blood_group,
+                rh_type,
+                collection_date,
+                volume_ml,
+                remarks,
+                created_by
+            )
+            VALUES
+            (
+                $1,$2,$3,$4,$5,$6,$7,$8
+            )
+            RETURNING *;
+            `,
                 [
                     unit_number,
                     donor_id,
-                    blood_group,
+                    blood_group.toUpperCase(),
                     rh_type,
-                    component_id,
                     collection_date,
-                    expiry_date,
                     volume_ml,
+                    remarks || null,
                     req.user.id
                 ]
             );
@@ -130,9 +80,146 @@ class BloodUnitController {
         }
     };
 
+    createBloodUnitComponentsHandler = async (req, res) => {
+        validateRequest(createBloodUnitComponentsSchema, req);
+        const client = await pool.connect();
+
+        try {
+
+            await client.query("BEGIN");
+
+            const { bloodUnitId } = req.params;
+            const { components } = req.body;
+
+            // Check Blood Unit
+            const bloodUnitResult = await client.query(`
+                SELECT id, status
+                FROM blood_units
+                WHERE id = $1
+            `,
+                [bloodUnitId]
+            );
+
+            if (bloodUnitResult.rowCount === 0) {
+                await client.query("ROLLBACK");
+                return sendErrorResponse(res, 404, "Blood unit not found.");
+            }
+
+            if (bloodUnitResult.rows[0].status === "Processed") {
+                await client.query("ROLLBACK");
+                return sendErrorResponse(res, 400, "Blood unit already processed.");
+            }
+
+            // Validate all component ids in one query
+            const componentIds = components.map(c => c.component_id);
+
+            const componentResult = await client.query(`
+                SELECT id
+                FROM blood_components
+                WHERE id = ANY($1)
+            `,
+                [componentIds]
+            );
+
+            if (componentResult.rowCount !== componentIds.length) {
+                await client.query("ROLLBACK");
+                return sendErrorResponse(
+                    res,
+                    404,
+                    "One or more blood components not found."
+                );
+            }
+
+            // Get sequence numbers for all components
+
+            const seqResult = await client.query(`
+                SELECT nextval('blood_unit_component_seq') AS seq
+                FROM generate_series(1, $1)
+            `,
+                [components.length]
+            );
+
+            const currentYear = new Date().getFullYear();
+
+            const values = [];
+            const placeholders = [];
+
+            components.forEach((item, index) => {
+
+                const component_unit_number = `BUC-${currentYear}-${String(
+                    seqResult.rows[index].seq
+                ).padStart(6, "0")}`;
+
+                const base = index * 6;
+
+                placeholders.push(
+                    `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6})`
+                );
+
+                values.push(
+                    component_unit_number,
+                    bloodUnitId,
+                    item.component_id,
+                    item.volume_ml,
+                    item.expiry_date,
+                    req.user.id
+                );
+            });
+
+            const insertQuery = `
+                INSERT INTO blood_unit_components
+                (
+                    component_unit_number,
+                    blood_unit_id,
+                    component_id,
+                    volume_ml,
+                    expiry_date,
+                    created_by
+                )
+                VALUES
+                ${placeholders.join(",")}
+                RETURNING *;
+            `;
+
+            const insertedComponents = await client.query(insertQuery, values);
+
+            await client.query(`
+                UPDATE blood_units
+                SET status = 'Processed'
+                WHERE id = $1
+            `,
+                [bloodUnitId]
+            );
+
+            await client.query("COMMIT");
+
+            return sendSuccessResponse(
+                res,
+                201,
+                "Blood components created successfully.",
+                insertedComponents.rows
+            );
+
+        } catch (error) {
+
+            await client.query("ROLLBACK");
+
+            return sendErrorResponse(
+                res,
+                500,
+                error.message ?? "Internal Server Error"
+            );
+
+        } finally {
+
+            client.release();
+
+        }
+    };
+
     getBloodUnitsHandler = async (req, res) => {
         try {
-           const { status, blood_group, rh_type, component_id } = req.query;
+            const { status, blood_group, rh_type, component_id } = req.query;
             const conditions = [];
             const values = [];
 
@@ -146,7 +233,7 @@ class BloodUnitController {
                 values.push(blood_group);
                 conditions.push(`bu.blood_group = $${values.length}`);
             }
-            
+
             if (rh_type) {
                 values.push(rh_type);
                 conditions.push(`bu.rh_type = $${values.length}`);
@@ -160,7 +247,7 @@ class BloodUnitController {
             const whereClause = conditions.length
                 ? `WHERE ${conditions.join(" AND ")}`
                 : "";
-            
+
             const result = await pool.query(
                 `
             SELECT
@@ -294,7 +381,6 @@ class BloodUnitController {
     };
 
     updateBloodUnitStatusHandler = async (req, res) => {
-        if (!validateRequestBody(req, res)) return;
         try {
             const { id } = req.params;
             const { status } = req.body;

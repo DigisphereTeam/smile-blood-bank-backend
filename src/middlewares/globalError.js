@@ -1,9 +1,14 @@
 const globalError = (err, req, res, next) => {
-  return res.status(err.statusCode || 500).json({
-    success: false,
-    statusCode : err.statusCode,
-    message: err.message || "Internal Server Error",
-  });
+    const statusCode = err.statusCode ?? 500;
+
+    const data = {
+        success: false,
+        statusCode,
+        message: err.message ?? "Internal Server Error",
+        errors: err.errors ?? null
+    };
+
+    return res.status(statusCode).json(data);
 };
 
 export default globalError;

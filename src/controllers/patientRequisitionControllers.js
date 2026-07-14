@@ -1,9 +1,11 @@
 import pool from "../database/configuration.js";
 import { sendErrorResponse, sendSuccessResponse, validateRequestBody } from "../utils/sendResponse.js";
+import { createPatientRequisitionSchema, updateBloodGroupSchema, updatePatientRequisitionSchema } from "../validations/schemas/patientRequisitionValidations.js";
+import validateRequest from "../validations/validateRequest.js";
 
 class PatientRequisitionController {
     createPatientRequisitionHandler = async (req, res) => {
-        if (!validateRequestBody(req, res)) return;
+        validateRequest(createPatientRequisitionSchema, req);
         const client = await pool.connect();
         try {
             await client.query("BEGIN");
@@ -29,78 +31,6 @@ class PatientRequisitionController {
                 name,
                 emergency_details
             } = req.body;
-
-
-            const errors = {};
-
-            if (!patient_name || !patient_name.trim()) {
-                errors.patient_name = "Patient name is required.";
-            }
-
-            if (!hospital_name || !hospital_name.trim()) {
-                errors.hospital_name = "Hospital name is required.";
-            }
-
-            if (!blood_group || !blood_group.trim()) {
-                errors.blood_group = "Blood group is required.";
-            }
-
-            if (!rh_type || !rh_type.trim()) {
-                errors.rh_type = "Rh type is required.";
-            } else if (!["+", "-"].includes(rh_type)) {
-                errors.rh_type = "Invalid Rh type.";
-            }
-
-            if (!age) {
-                errors.age = "Age is required.";
-            } else if (age <= 0) {
-                errors.age = "Age must be greater than 0.";
-            }
-
-            if (!gender || !gender.trim()) {
-                errors.gender = "Gender is required.";
-            } else if (!["Male", "Female", "Other"].includes(gender)) {
-                errors.gender = "Invalid gender.";
-            }
-
-            if (!diagnosis || !diagnosis.trim()) {
-                errors.diagnosis = "Diagnosis is required.";
-            }
-
-            if (!Array.isArray(components) || components.length === 0) {
-                errors.components = "At least one component is required.";
-            }
-
-            if (is_emergency === true) {
-                if (!compatibility_test_type || !compatibility_test_type.trim()) {
-                    errors.compatibility_test_type = "Compatibility test type is required.";
-                }
-
-                if (!physician || !physician.trim()) {
-                    errors.physician = "Physician is required.";
-                }
-
-                if (!name || !name.trim()) {
-                    errors.name = "Name is required.";
-                }
-            }
-
-            if (
-                !Array.isArray(transfusion_indications) ||
-                transfusion_indications.length === 0
-            ) {
-                errors.transfusion_indications =
-                    "At least one transfusion indication is required.";
-            }
-
-            if (Object.keys(errors).length > 0) {
-                return res.status(422).json({
-                    success: false,
-                    statusCode: 422,
-                    message: "Validation failed.",
-                    errors
-                });
-            }
 
             const patientResult = await client.query(`SELECT nextval('patient_id_seq')`);
             const idNumber = patientResult.rows[0].nextval;
@@ -237,8 +167,6 @@ class PatientRequisitionController {
         }
     };
     updatePatientRequisitionHandler = async (req, res) => {
-        if (!validateRequestBody(req, res)) return;
-
         const { requisitionId } = req.params;
         if (!requisitionId || !Number.isInteger(Number(requisitionId)) || Number(requisitionId) <= 0) {
             return sendErrorResponse(
@@ -247,6 +175,7 @@ class PatientRequisitionController {
                 "Invalid patient requisition ID."
             );
         }
+        validateRequest(updatePatientRequisitionSchema, req);
         const client = await pool.connect();
 
         try {
@@ -285,22 +214,6 @@ class PatientRequisitionController {
                 name,
                 emergency_details
             } = req.body;
-
-            // Validation
-            const errors = {};
-            if (rh_type && !["+", "-"].includes(rh_type)) errors.rh_type = "Invalid Rh type.";
-            if (gender && !["Male", "Female", "Other"].includes(gender)) errors.gender = "Invalid gender.";
-            if (age && age <= 0) errors.age = "Age must be greater than 0.";
-
-            if (Object.keys(errors).length) {
-                await client.query("ROLLBACK");
-                return res.status(422).json({
-                    success: false,
-                    statusCode: 422,
-                    message: "Validation failed.",
-                    errors
-                });
-            }
 
             // Dynamic update fields
             const fields = [];
@@ -406,6 +319,45 @@ class PatientRequisitionController {
             return sendErrorResponse(res, 500, error.message || "Internal server error");
         } finally {
             client.release();
+        }
+    };
+
+    updatePatientBloodGroupHandler = async (req, res) => {
+        const { requisitionId } = req.params;
+        if (!requisitionId || !Number.isInteger(Number(requisitionId)) || Number(requisitionId) <= 0) {
+            return sendErrorResponse(res, 400, "Invalid patient requisition ID.");
+        }
+        validateRequest(updateBloodGroupSchema, req);
+        const { blood_group, rh_type } = req.body;
+        try {
+            const { rowCount, rows } = await pool.query(`
+                UPDATE patient_requisitions
+                SET
+                    blood_group = $1,
+                    rh_type = $2,
+                    updated_at = NOW()
+                WHERE id = $3
+                RETURNING *;
+            `,
+                [blood_group, rh_type, requisitionId]
+            );
+
+            if (rowCount === 0) {
+                return sendErrorResponse(res, 404, "Patient requisition not found.");
+            }
+
+            return sendSuccessResponse(
+                res,
+                200,
+                "Blood group updated successfully.",
+                rows[0]
+            );
+        } catch (error) {
+            return sendErrorResponse(
+                res,
+                500,
+                error.message || "Internal server error."
+            );
         }
     };
 

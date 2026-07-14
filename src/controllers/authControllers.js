@@ -2,59 +2,16 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import appConfig from "../config/appConfig.js";
 import pool from "../database/configuration.js";
-import { sendErrorResponse, sendSuccessResponse, validateRequestBody } from "../utils/sendResponse.js";
+import { sendErrorResponse, sendSuccessResponse } from "../utils/sendResponse.js";
+import { createUserSchema, userLoginSchema } from "../validations/schemas/authValidations.js";
+import validateRequest from "../validations/validateRequest.js";
 
 class AuthController {
     createUserHandlers = async (req, res) => {
-        if (!validateRequestBody(req, res)) return;
+        validateRequest(createUserSchema, req);
         try {
             const { first_name, last_name, email, phone_number, password, role = "frontdesk" } = req.body;
 
-            const errors = {};
-
-            if (!first_name || !first_name.trim()) {
-                errors.first_name = "First name is required.";
-            }
-
-            if (!email || !email.trim()) {
-                errors.email = "Email is required.";
-            } else {
-                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-                if (!emailRegex.test(email)) {
-                    errors.email = "Invalid email address.";
-                }
-            }
-
-            if (!phone_number || !phone_number.trim()) {
-                errors.phone_number = "Phone number is required.";
-            } else if (!/^[0-9]{10}$/.test(phone_number)) {
-                errors.phone_number = "Phone number must contain exactly 10 digits.";
-            }
-
-            if (!password || !password.trim()) {
-                errors.password = "Password is required.";
-            } else if (password.length < 8) {
-                errors.password = "Password must be at least 8 characters.";
-            }
-
-            const allowedRoles = ["admin", "frontdesk", "technical"];
-
-            if (!role || !role.trim()) {
-                errors.role = "Role is required.";
-            } else if (!allowedRoles.includes(role)) {
-                errors.role = "Invalid role.";
-            }
-
-            if (Object.keys(errors).length > 0) {
-                return res.status(422).json({
-                    success: false,
-                    statusCode: 422,
-                    message: "Validation failed.",
-                    errors
-                });
-            }
-            // Check duplicate email or phone number
             const existingUser = await pool.query(`
                 SELECT id
                 FROM users
@@ -99,39 +56,13 @@ class AuthController {
         }
     };
     userLoginHandlers = async (req, res) => {
-        if (!validateRequestBody(req, res)) return;
+        validateRequest(userLoginSchema, req);
         try {
             const { email, password } = req.body;
-
-            const errors = {};
-
-            if (!email || !email.trim()) {
-                errors.email = "Email is required.";
-            } else {
-                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-                if (!emailRegex.test(email)) {
-                    errors.email = "Invalid email address.";
-                }
-            }
-
-            if (!password || !password.trim()) {
-                errors.password = "Password is required.";
-            }
-
-            if (Object.keys(errors).length > 0) {
-                return res.status(422).json({
-                    success: false,
-                    statusCode: 422,
-                    message: "Validation failed.",
-                    errors
-                });
-            }
-
             const result = await pool.query(`
-                SELECT *
-                FROM users
-                WHERE email = $1
+                    SELECT *
+                    FROM users
+                    WHERE email = $1
                 `,
                 [email]
             );

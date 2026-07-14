@@ -1,6 +1,6 @@
 import express from "express";
 import PatientRequisitionController from "../controllers/patientRequisitionControllers.js";
-import { verifyToken } from "../middlewares/authMiddleware.js";
+import { requireRequestBody, verifyToken } from "../middlewares/authMiddleware.js";
 
 const patientRequisitionController = new PatientRequisitionController();
 const patientRequisitionRoutes = express.Router();
@@ -8,6 +8,7 @@ const patientRequisitionRoutes = express.Router();
 patientRequisitionRoutes.post(
     "/",
     verifyToken,
+    requireRequestBody,
     patientRequisitionController.createPatientRequisitionHandler
 );
 
@@ -44,7 +45,15 @@ patientRequisitionRoutes.patch(
 patientRequisitionRoutes.patch(
     "/:requisitionId",
     verifyToken,
+    requireRequestBody,
     patientRequisitionController.updatePatientRequisitionHandler
+);
+
+patientRequisitionRoutes.patch(
+    "/:requisitionId/blood-group",
+    verifyToken,
+    requireRequestBody,
+    patientRequisitionController.updatePatientBloodGroupHandler
 );
 
 patientRequisitionRoutes.patch(

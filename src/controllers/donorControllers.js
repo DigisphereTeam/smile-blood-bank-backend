@@ -1,12 +1,12 @@
 import pool from "../database/configuration.js";
-import { sendErrorResponse, sendSuccessResponse, validateRequestBody } from "../utils/sendResponse.js";
+import { sendErrorResponse, sendSuccessResponse } from "../utils/sendResponse.js";
+import { createDonorWithBloodUnitSchema } from "../validations/schemas/bloodUnitValidations.js";
+import validateRequest from "../validations/validateRequest.js";
 
 class DonorController {
     createDonorHandler = async (req, res) => {
-        if (!validateRequestBody(req, res)) return;
         try {
             const {
-                donor_code,
                 first_name,
                 last_name,
                 gender,
@@ -26,10 +26,6 @@ class DonorController {
             } = req.body;
 
             const errors = {};
-
-            if (!donor_code || !donor_code.trim()) {
-                errors.donor_code = "Donor code is required.";
-            }
 
             if (!first_name || !first_name.trim()) {
                 errors.first_name = "First name is required.";
@@ -92,7 +88,6 @@ class DonorController {
             const result = await pool.query(
                 `
                 INSERT INTO donors(
-                    donor_code,
                     first_name,
                     last_name,
                     gender,
@@ -118,7 +113,6 @@ class DonorController {
                 RETURNING *;
                 `,
                 [
-                    donor_code,
                     first_name,
                     last_name,
                     gender,
@@ -152,6 +146,161 @@ class DonorController {
                 500,
                 error.message || "Internal server error."
             );
+        }
+    };
+
+    // add donor details with blood units
+    createDonorWithBloodUnitHandler = async (req, res) => {
+        const validatedBody = validateRequest(createDonorWithBloodUnitSchema, req);
+
+        const client = await pool.connect();
+
+        try {
+            await client.query("BEGIN");
+
+            const {
+                name,
+                gender,
+                age,
+                blood_group,
+                rh_type,
+                phone_number,
+                email,
+                address,
+                weight,
+                hemoglobin,
+                last_donation_date,
+                collection_date,
+                volume_ml,
+                remarks
+            } = validatedBody;
+
+            // Check duplicate donor
+            const existingDonor = await client.query(`
+                SELECT id
+                FROM donors
+                WHERE phone_number = $1
+                OR email = $2
+                `,
+                [phone_number, email || null]
+            );
+
+            if (existingDonor.rowCount > 0) {
+                await client.query("ROLLBACK");
+                return sendErrorResponse(
+                    res,
+                    409,
+                    "Donor already exists."
+                );
+            }
+
+            // Create Donor
+            const donorResult = await client.query(
+                `
+            INSERT INTO donors
+            (
+                name,
+                gender,
+                age,
+                blood_group,
+                rh_type,
+                phone_number,
+                email,
+                address,
+                weight,
+                hemoglobin,
+                last_donation_date,
+                created_by
+            )
+            VALUES
+            (
+                $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12
+            )
+            RETURNING *;
+            `,
+                [
+                    name,
+                    gender,
+                    age,
+                    blood_group,
+                    rh_type,
+                    phone_number,
+                    email || null,
+                    address || null,
+                    weight || null,
+                    hemoglobin || null,
+                    last_donation_date || null,
+                    req.user.id
+                ]
+            );
+
+            const donor = donorResult.rows[0];
+
+            // Generate Blood Unit Number
+            const seq = await client.query(
+                `SELECT nextval('blood_unit_seq') AS seq`
+            );
+
+            const currentYear = new Date().getFullYear();
+
+            const unit_number = `BU-${currentYear}-${String(
+                seq.rows[0].seq
+            ).padStart(6, "0")}`;
+
+            // Create Blood Unit
+            const bloodUnitResult = await client.query(
+                `
+            INSERT INTO blood_units
+            (
+                unit_number,
+                donor_id,
+                blood_group,
+                rh_type,
+                collection_date,
+                volume_ml,
+                remarks,
+                created_by
+            )
+            VALUES
+            (
+                $1,$2,$3,$4,$5,$6,$7,$8
+            )
+            RETURNING *;
+            `,
+                [
+                    unit_number,
+                    donor.id,
+                    blood_group,
+                    rh_type,
+                    collection_date,
+                    volume_ml,
+                    remarks || null,
+                    req.user.id
+                ]
+            );
+
+            await client.query("COMMIT");
+
+            return sendSuccessResponse(
+                res,
+                201,
+                "Donor and blood unit created successfully.",
+                {
+                    ...donor,
+                    ...bloodUnitResult.rows[0]
+                }
+            );
+
+        } catch (error) {
+            await client.query("ROLLBACK");
+
+            return sendErrorResponse(
+                res,
+                500,
+                error.message || "Internal server error."
+            );
+        } finally {
+            client.release();
         }
     };
 
