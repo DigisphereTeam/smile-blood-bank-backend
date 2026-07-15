@@ -1,3 +1,4 @@
+import cors from "cors";
 import "dotenv/config";
 import express from 'express';
 import appConfig from './config/appConfig.js';
@@ -12,6 +13,7 @@ import patientRequisitionRoutes from './routes/patientRequisitionRoutes.js';
 import { sendSuccessResponse } from './utils/sendResponse.js';
 
 const app = express();
+app.use(cors());
 app.use(express.json())
 
 app.get("/" , (_, res)=>{
