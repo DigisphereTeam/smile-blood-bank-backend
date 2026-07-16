@@ -194,11 +194,21 @@ class DonorController {
                 );
             }
 
+             // Generate Donor Code
+        const donorSeq = await client.query(
+            `SELECT nextval('donor_code_seq') AS seq`
+        );
+
+        const donor_code = `DON${String(
+            donorSeq.rows[0].seq
+        ).padStart(6, "0")}`;
+
             // Create Donor
             const donorResult = await client.query(
                 `
             INSERT INTO donors
             (
+                donor_code,
                 name,
                 gender,
                 age,
@@ -214,11 +224,12 @@ class DonorController {
             )
             VALUES
             (
-                $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12
+                $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13
             )
             RETURNING *;
             `,
                 [
+                    donor_code,
                     name,
                     gender,
                     age,
@@ -352,7 +363,7 @@ class DonorController {
                         'id',u.id,
                         'first_name',u.first_name,
                         'last_name',u.last_name,
-                        'email',u.email,
+                        'email',u.email,    
                         'role',u.role
                     ) AS created_by
                 FROM donors d
