@@ -8,7 +8,7 @@ import notFound from './middlewares/notFound.js';
 import authRoutes from './routes/authRoutes.js';
 import bloodComponentRoutes from './routes/bloodComponentRoutes.js';
 import bloodUnitRoutes from './routes/bloodUnitsRoutes.js';
-import donorRoutes from './routes/donotRoutes.js';
+import donorRoutes from './routes/donorRoutes.js';
 import patientRequisitionRoutes from './routes/patientRequisitionRoutes.js';
 import { sendSuccessResponse } from './utils/sendResponse.js';
 
