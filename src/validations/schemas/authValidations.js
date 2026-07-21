@@ -82,3 +82,76 @@ export const createUserSchema = Joi.object({
             "any.only": "Invalid role."
         })
 });
+
+
+export const forgotPasswordSchema = Joi.object({
+    email: Joi.string()
+        .trim()
+        .email()
+        .required()
+        .messages({
+            "any.required": "Email is required.",
+            "string.base": "Invalid email address.",
+            "string.empty": "Email is required.",
+            "string.email": "Invalid email address."
+        })
+});
+
+export const verifyForgotPasswordOtpSchema = Joi.object({
+    email: Joi.string()
+        .trim()
+        .email()
+        .required()
+        .messages({
+            "any.required": "Email is required.",
+            "string.empty": "Email is required.",
+            "string.email": "Invalid email address.",
+            "string.base": "Invalid email address."
+        }),
+
+    otp: Joi.string()
+        .trim()
+        .length(4)
+        .pattern(/^[0-9]+$/)
+        .required()
+        .messages({
+            "any.required": "OTP is required.",
+            "string.empty": "OTP is required.",
+            "string.length": "OTP must contain exactly 4 digits.",
+            "string.pattern.base": "OTP must contain only numbers."
+        })
+});
+
+
+export const resetPasswordSchema = Joi.object({
+    email: Joi.string()
+        .trim()
+        .email()
+        .required()
+        .messages({
+            "any.required": "Email is required.",
+            "string.empty": "Email is required.",
+            "string.email": "Invalid email address.",
+            "string.base": "Invalid email address."
+        }),
+
+    password: Joi.string()
+        .trim()
+        .min(8)
+        .required()
+        .messages({
+            "any.required": "Password is required.",
+            "string.empty": "Password is required.",
+            "string.min": "Password must be at least 8 characters."
+        }),
+
+    confirm_password: Joi.string()
+        .trim()
+        .valid(Joi.ref("password"))
+        .required()
+        .messages({
+            "any.required": "Confirm password is required.",
+            "string.empty": "Confirm password is required.",
+            "any.only": "Passwords do not match."
+        })
+});
