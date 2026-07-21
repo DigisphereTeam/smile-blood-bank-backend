@@ -1,42 +1,52 @@
 import pool from "../database/configuration.js";
-import { sendErrorResponse, sendSuccessResponse } from "../utils/sendResponse.js";
-import { createPatientRequisitionSchema, updateBloodGroupSchema, updatePatientRequisitionSchema } from "../validations/schemas/patientRequisitionValidations.js";
+import {
+  sendErrorResponse,
+  sendSuccessResponse,
+} from "../utils/sendResponse.js";
+import {
+  createPatientRequisitionSchema,
+  updateBloodGroupSchema,
+  updatePatientRequisitionSchema,
+} from "../validations/schemas/patientRequisitionValidations.js";
 import validateRequest from "../validations/validateRequest.js";
 
 class PatientRequisitionController {
-    createPatientRequisitionHandler = async (req, res) => {
-        const validatedBody = validateRequest(createPatientRequisitionSchema, req);
-        const client = await pool.connect();
-        try {
-            await client.query("BEGIN");
-            const {
-                patient_name,
-                hospital_name,
-                blood_group,
-                rh_type,
-                age,
-                gender,
-                diagnosis,
-                ip_number,
-                referred_by,
-                ward_no,
-                previous_transfusion = false,
-                previous_transfusion_reaction = false,
-                previous_transfusion_reaction_details,
-                transfusion_indications = [],
-                components = [],
-                is_emergency = false,
-                compatibility_test_type,
-                physician_name,
-                emergency_details
-            } = validatedBody;
+  createPatientRequisitionHandler = async (req, res) => {
+    const validatedBody = validateRequest(createPatientRequisitionSchema, req);
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const {
+        patient_name,
+        hospital_name,
+        blood_group,
+        rh_type,
+        age,
+        gender,
+        diagnosis,
+        ip_number,
+        referred_by,
+        ward_no,
+        previous_transfusion = false,
+        previous_transfusion_reaction = false,
+        previous_transfusion_reaction_details,
+        transfusion_indications = [],
+        components = [],
+        is_emergency = false,
+        compatibility_test_type,
+        physician_name,
+        emergency_details,
+      } = validatedBody;
 
-            const patientResult = await client.query(`SELECT nextval('patient_id_seq')`);
-            const idNumber = patientResult.rows[0].nextval;
+      const patientResult = await client.query(
+        `SELECT nextval('patient_id_seq')`,
+      );
+      const idNumber = patientResult.rows[0].nextval;
 
-            const patientId = `PAT-${String(idNumber).padStart(6, '0')}`;
+      const patientId = `PAT-${String(idNumber).padStart(6, "0")}`;
 
-            const result = await client.query(`
+      const result = await client.query(
+        `
                 INSERT INTO patient_requisitions (
                     patient_id,
                     patient_name,
@@ -64,267 +74,303 @@ class PatientRequisitionController {
                 )
                 RETURNING *;
                 `,
-                [
-                    patientId,
-                    patient_name,
-                    hospital_name,
-                    blood_group,
-                    rh_type,
-                    age,
-                    gender,
-                    diagnosis,
-                    ip_number ?? null,
-                    referred_by,
-                    ward_no ?? null,
-                    previous_transfusion,
-                    previous_transfusion_reaction,
-                    previous_transfusion_reaction_details ?? null,
-                    is_emergency,
-                    compatibility_test_type ?? null,
-                    physician_name ?? null,
-                    emergency_details ?? null,
-                    req.user.id
-                ]
-            );
+        [
+          patientId,
+          patient_name,
+          hospital_name,
+          blood_group,
+          rh_type,
+          age,
+          gender,
+          diagnosis,
+          ip_number ?? null,
+          referred_by,
+          ward_no ?? null,
+          previous_transfusion,
+          previous_transfusion_reaction,
+          previous_transfusion_reaction_details ?? null,
+          is_emergency,
+          compatibility_test_type ?? null,
+          physician_name ?? null,
+          emergency_details ?? null,
+          req.user.id,
+        ],
+      );
 
-            const requisitionId = result.rows[0].id;
-            const values = [];
-            const placeholders = [];
+      const requisitionId = result.rows[0].id;
+      const values = [];
+      const placeholders = [];
 
-            for (let index = 0; index < components.length; index++) {
-                const c = components[index];
+      for (let index = 0; index < components.length; index++) {
+        const c = components[index];
 
-                if (
-                    !c.component_id?.toString().trim() ||
-                    !(c.units_required > 0) ||
-                    !c.required_date_time
-                ) {
-                    return sendErrorResponse(res, 400, "Invalid component data");
-                }
+        if (
+          !c.component_id?.toString().trim() ||
+          !(c.units_required > 0) ||
+          !c.required_date_time ||
+          typeof c.is_reserved !== "boolean"
+        ) {
+          return sendErrorResponse(res, 400, "Invalid component data");
+        }
 
-                const baseIndex = index * 3;
+        const baseIndex = index * 4;
 
-                placeholders.push(
-                    `($1, $${baseIndex + 2}, $${baseIndex + 3}, $${baseIndex + 4})`
-                );
+        placeholders.push(
+          `($1, $${baseIndex + 2}, $${baseIndex + 3}, $${baseIndex + 4}, $${baseIndex + 5})`,
+        );
 
-                values.push(
-                    c.component_id,
-                    c.units_required,
-                    c.required_date_time
-                );
-            }
+        values.push(
+          c.component_id,
+          c.units_required,
+          c.required_date_time,
+          c.is_reserved,
+        );
+      }
 
-            const indValues = [];
-            const indPlaceholders = [];
+      const indValues = [];
+      const indPlaceholders = [];
 
-            for (let index = 0; index < transfusion_indications.length; index++) {
-                const ind = transfusion_indications[index];
+      for (let index = 0; index < transfusion_indications.length; index++) {
+        const ind = transfusion_indications[index];
 
-                if (!ind?.toString().trim()) {
-                    return sendErrorResponse(res, 400, "Invalid transfusion indication");
-                }
+        if (!ind?.toString().trim()) {
+          return sendErrorResponse(res, 400, "Invalid transfusion indication");
+        }
 
-                indPlaceholders.push(`($1, $${index + 2})`);
-                indValues.push(ind);
-            }
+        indPlaceholders.push(`($1, $${index + 2})`);
+        indValues.push(ind);
+      }
 
-            await client.query(`
+      (await client.query(
+        `
                 INSERT INTO patient_requisition_components
-                (requisition_id, component_id, units_required, required_date_time)
+                (requisition_id, component_id, units_required, required_date_time , is_reserved)
                 VALUES ${placeholders.join(", ")}`,
-                [requisitionId, ...values]
-            ),
-                await client.query(`
+        [requisitionId, ...values],
+      ),
+        await client.query(
+          `
                 INSERT INTO patient_requisition_transfusion_indications
                 (requisition_id, indication)
                 VALUES ${indPlaceholders.join(", ")}`,
-                    [requisitionId, ...indValues]
-                )
+          [requisitionId, ...indValues],
+        ));
 
-            await client.query("COMMIT");
+      await client.query("COMMIT");
 
-            return sendSuccessResponse(
-                res,
-                201,
-                "Patient requisition created successfully.",
-                result.rows[0]
-            );
+      return sendSuccessResponse(
+        res,
+        201,
+        "Patient requisition created successfully.",
+        result.rows[0],
+      );
+    } catch (error) {
+      await client.query("ROLLBACK");
 
-        } catch (error) {
-            await client.query("ROLLBACK");
+      return sendErrorResponse(
+        res,
+        500,
+        error.message || "Internal server error",
+      );
+    } finally {
+      client.release();
+    }
+  };
+  updatePatientRequisitionHandler = async (req, res) => {
+    const { requisitionId } = req.params;
+    if (
+      !requisitionId ||
+      !Number.isInteger(Number(requisitionId)) ||
+      Number(requisitionId) <= 0
+    ) {
+      return sendErrorResponse(res, 400, "Invalid patient requisition ID.");
+    }
+    const validatedBody = validateRequest(updatePatientRequisitionSchema, req);
+    const client = await pool.connect();
 
-            return sendErrorResponse(
-                res,
-                500,
-                error.message || "Internal server error"
-            );
-        } finally {
-            client.release();
+    try {
+      await client.query("BEGIN");
+
+      // Check if requisition exists
+      const { rowCount } = await client.query(
+        `SELECT 1 FROM patient_requisitions WHERE id = $1`,
+        [requisitionId],
+      );
+
+      if (rowCount === 0) {
+        await client.query("ROLLBACK");
+        return sendErrorResponse(res, 404, "Patient requisition not found.");
+      }
+
+      const {
+        patient_name,
+        hospital_name,
+        blood_group,
+        rh_type,
+        age,
+        gender,
+        diagnosis,
+        ip_number,
+        referred_by,
+        ward_no,
+        previous_transfusion,
+        previous_transfusion_reaction,
+        previous_transfusion_reaction_details,
+        transfusion_indications,
+        components,
+        is_emergency,
+        compatibility_test_type,
+        physician_name,
+        emergency_details,
+      } = validatedBody;
+
+      // Dynamic update fields
+      const fields = [];
+      const values = [];
+      let index = 1;
+
+      const addField = (column, value) => {
+        if (value !== undefined) {
+          fields.push(`${column} = $${index++}`);
+          values.push(value);
         }
-    };
-    updatePatientRequisitionHandler = async (req, res) => {
-        const { requisitionId } = req.params;
-        if (!requisitionId || !Number.isInteger(Number(requisitionId)) || Number(requisitionId) <= 0) {
-            return sendErrorResponse(
-                res,
-                400,
-                "Invalid patient requisition ID."
-            );
-        }
-        const validatedBody = validateRequest(updatePatientRequisitionSchema, req);
-        const client = await pool.connect();
+      };
 
-        try {
-            await client.query("BEGIN");
+      [
+        ["patient_name", patient_name],
+        ["hospital_name", hospital_name],
+        ["blood_group", blood_group],
+        ["rh_type", rh_type],
+        ["age", age],
+        ["gender", gender],
+        ["diagnosis", diagnosis],
+        ["ip_number", ip_number],
+        ["referred_by", referred_by],
+        ["ward_no", ward_no],
+        ["previous_transfusion", previous_transfusion],
+        ["previous_transfusion_reaction", previous_transfusion_reaction],
+        [
+          "previous_transfusion_reaction_details",
+          previous_transfusion_reaction_details,
+        ],
+        ["is_emergency", is_emergency],
+        ["compatibility_test_type", compatibility_test_type],
+        ["physician_name", physician_name],
+        ["emergency_details", emergency_details],
+      ].forEach(([col, val]) => addField(col, val));
 
-            // Check if requisition exists
-            const { rowCount } = await client.query(
-                `SELECT 1 FROM patient_requisitions WHERE id = $1`,
-                [requisitionId]
-            );
-
-            if (rowCount === 0) {
-                await client.query("ROLLBACK");
-                return sendErrorResponse(res, 404, "Patient requisition not found.");
-            }
-
-            const {
-                patient_name,
-                hospital_name,
-                blood_group,
-                rh_type,
-                age,
-                gender,
-                diagnosis,
-                ip_number,
-                referred_by,
-                ward_no,
-                previous_transfusion,
-                previous_transfusion_reaction,
-                previous_transfusion_reaction_details,
-                transfusion_indications,
-                components,
-                is_emergency,
-                compatibility_test_type,
-                physician_name,
-                emergency_details
-            } = validatedBody;
-
-            // Dynamic update fields
-            const fields = [];
-            const values = [];
-            let index = 1;
-
-            const addField = (column, value) => {
-                if (value !== undefined) {
-                    fields.push(`${column} = $${index++}`);
-                    values.push(value);
-                }
-            };
-
-            [
-                ["patient_name", patient_name],
-                ["hospital_name", hospital_name],
-                ["blood_group", blood_group],
-                ["rh_type", rh_type],
-                ["age", age],
-                ["gender", gender],
-                ["diagnosis", diagnosis],
-                ["ip_number", ip_number],
-                ["referred_by", referred_by],
-                ["ward_no", ward_no],
-                ["previous_transfusion", previous_transfusion],
-                ["previous_transfusion_reaction", previous_transfusion_reaction],
-                ["previous_transfusion_reaction_details", previous_transfusion_reaction_details],
-                ["is_emergency", is_emergency],
-                ["compatibility_test_type", compatibility_test_type],
-                ["physician_name", physician_name],
-                ["emergency_details", emergency_details]
-            ].forEach(([col, val]) => addField(col, val));
-
-            if (fields.length) {
-                values.push(requisitionId);
-                await client.query(
-                    `UPDATE patient_requisitions
+      if (fields.length) {
+        values.push(requisitionId);
+        await client.query(
+          `UPDATE patient_requisitions
                  SET ${fields.join(", ")}, updated_at = NOW()
                  WHERE id = $${index}`,
-                    values
-                );
-            }
+          values,
+        );
+      }
 
-            // Update Components
-            if (components) {
-                await client.query(
-                    `DELETE FROM patient_requisition_components WHERE requisition_id = $1`,
-                    [requisitionId]
-                );
+      // Update Components
+      if (components) {
+        await client.query(
+          `DELETE FROM patient_requisition_components WHERE requisition_id = $1`,
+          [requisitionId],
+        );
 
-                if (components.length) {
-                    const placeholders = [];
-                    const componentValues = [];
+        if (components.length) {
+          const placeholders = [];
+          const componentValues = [];
 
-                    components.forEach((c, i) => {
-                        if (!c.component_id || !c.units_required || !c.required_date_time) {
-                            throw new Error("Invalid component data.");
-                        }
-                        const base = i * 3;
-                        placeholders.push(`($1,$${base + 2},$${base + 3},$${base + 4})`);
-                        componentValues.push(c.component_id, c.units_required, c.required_date_time);
-                    });
+         components.forEach((c, i) => {
+  if (
+    !c.component_id ||
+    !c.units_required ||
+    !c.required_date_time ||
+    c.is_reserved === undefined
+  ) {
+    throw new Error("Invalid component data.");
+  }
 
-                    await client.query(
-                        `INSERT INTO patient_requisition_components
-                     (requisition_id, component_id, units_required, required_date_time)
-                     VALUES ${placeholders.join(",")}`,
-                        [requisitionId, ...componentValues]
-                    );
-                }
-            }
+  const base = i * 4;
 
-            // Update Transfusion Indications
-            if (transfusion_indications) {
-                await client.query(
-                    `DELETE FROM patient_requisition_transfusion_indications WHERE requisition_id = $1`,
-                    [requisitionId]
-                );
+  placeholders.push(
+    `($1,$${base + 2},$${base + 3},$${base + 4},$${base + 5})`
+  );
 
-                if (transfusion_indications.length) {
-                    const placeholders = transfusion_indications.map((_, i) => `($1,$${i + 2})`);
-                    await client.query(
-                        `INSERT INTO patient_requisition_transfusion_indications
+  componentValues.push(
+    c.component_id,
+    c.units_required,
+    c.required_date_time,
+    c.is_reserved
+  );
+});
+
+await client.query(
+  `INSERT INTO patient_requisition_components
+   (requisition_id, component_id, units_required, required_date_time, is_reserved)
+   VALUES ${placeholders.join(",")}`,
+  [requisitionId, ...componentValues]
+);
+        }
+      }
+
+      // Update Transfusion Indications
+      if (transfusion_indications) {
+        await client.query(
+          `DELETE FROM patient_requisition_transfusion_indications WHERE requisition_id = $1`,
+          [requisitionId],
+        );
+
+        if (transfusion_indications.length) {
+          const placeholders = transfusion_indications.map(
+            (_, i) => `($1,$${i + 2})`,
+          );
+          await client.query(
+            `INSERT INTO patient_requisition_transfusion_indications
                      (requisition_id, indication)
                      VALUES ${placeholders.join(",")}`,
-                        [requisitionId, ...transfusion_indications]
-                    );
-                }
-            }
-
-            const { rows } = await client.query(
-                `SELECT * FROM patient_requisitions WHERE id = $1`,
-                [requisitionId]
-            );
-
-            await client.query("COMMIT");
-
-            return sendSuccessResponse(res, 200, "Patient requisition updated successfully.", rows[0]);
-
-        } catch (error) {
-            await client.query("ROLLBACK");
-            return sendErrorResponse(res, 500, error.message || "Internal server error");
-        } finally {
-            client.release();
+            [requisitionId, ...transfusion_indications],
+          );
         }
-    };
-    updatePatientBloodGroupHandler = async (req, res) => {
-        const { requisitionId } = req.params;
-        if (!requisitionId || !Number.isInteger(Number(requisitionId)) || Number(requisitionId) <= 0) {
-            return sendErrorResponse(res, 400, "Invalid patient requisition ID.");
-        }
-        const validatedBody = validateRequest(updateBloodGroupSchema, req);
-        const { blood_group, rh_type } = validatedBody;
-        try {
-            const { rowCount, rows } = await pool.query(`
+      }
+
+      const { rows } = await client.query(
+        `SELECT * FROM patient_requisitions WHERE id = $1`,
+        [requisitionId],
+      );
+
+      await client.query("COMMIT");
+
+      return sendSuccessResponse(
+        res,
+        200,
+        "Patient requisition updated successfully.",
+        rows[0],
+      );
+    } catch (error) {
+      await client.query("ROLLBACK");
+      return sendErrorResponse(
+        res,
+        500,
+        error.message || "Internal server error",
+      );
+    } finally {
+      client.release();
+    }
+  };
+  updatePatientBloodGroupHandler = async (req, res) => {
+    const { requisitionId } = req.params;
+    if (
+      !requisitionId ||
+      !Number.isInteger(Number(requisitionId)) ||
+      Number(requisitionId) <= 0
+    ) {
+      return sendErrorResponse(res, 400, "Invalid patient requisition ID.");
+    }
+    const validatedBody = validateRequest(updateBloodGroupSchema, req);
+    const { blood_group, rh_type } = validatedBody;
+    try {
+      const { rowCount, rows } = await pool.query(
+        `
                 UPDATE patient_requisitions
                 SET
                     blood_group = $1,
@@ -333,31 +379,30 @@ class PatientRequisitionController {
                 WHERE id = $3
                 RETURNING *;
             `,
-                [blood_group, rh_type, requisitionId]
-            );
+        [blood_group, rh_type, requisitionId],
+      );
 
-            if (rowCount === 0) {
-                return sendErrorResponse(res, 404, "Patient requisition not found.");
-            }
+      if (rowCount === 0) {
+        return sendErrorResponse(res, 404, "Patient requisition not found.");
+      }
 
-            return sendSuccessResponse(
-                res,
-                200,
-                "Blood group updated successfully.",
-                rows[0]
-            );
-        } catch (error) {
-            return sendErrorResponse(
-                res,
-                500,
-                error.message || "Internal server error."
-            );
-        }
-    };
-    getRequisitionStats = async (req, res) => {
-        try {
-
-            const result = await pool.query(`
+      return sendSuccessResponse(
+        res,
+        200,
+        "Blood group updated successfully.",
+        rows[0],
+      );
+    } catch (error) {
+      return sendErrorResponse(
+        res,
+        500,
+        error.message || "Internal server error.",
+      );
+    }
+  };
+  getRequisitionStats = async (req, res) => {
+    try {
+      const result = await pool.query(`
             SELECT
             COUNT(*) AS total,
             COUNT(*) FILTER(WHERE status = 'Pending') AS pending,
@@ -369,95 +414,86 @@ class PatientRequisitionController {
             FROM patient_requisitions;
             `);
 
-            sendSuccessResponse(
-                res,
-                200,
-                "Patient requisition statistics fetched successfully.",
-                result.rows[0]
-            );
+      sendSuccessResponse(
+        res,
+        200,
+        "Patient requisition statistics fetched successfully.",
+        result.rows[0],
+      );
+    } catch (error) {
+      sendErrorResponse(
+        res,
+        500,
+        error.message || "Failed to fetch patient requisition statistics.",
+      );
+    }
+  };
+  updatePatientRequisitionStatusHandler = async (req, res) => {
+    const { id } = req.params;
+    const { status } = req.body;
 
-        } catch (error) {
-            sendErrorResponse(
-                res,
-                500,
-                error.message || "Failed to fetch patient requisition statistics."
-            );
-        }
-    };
-    updatePatientRequisitionStatusHandler = async (req, res) => {
-        const { id } = req.params;
-        const { status } = req.body;
+    if (!id || !Number.isInteger(Number(id)) || Number(id) <= 0) {
+      return sendErrorResponse(res, 400, "Invalid patient requisition ID.");
+    }
 
-        if (!id || !Number.isInteger(Number(id)) || Number(id) <= 0) {
-            return sendErrorResponse(
-                res,
-                400,
-                "Invalid patient requisition ID."
-            );
-        }
+    const validStatuses = [
+      "Pending",
+      "Processing",
+      "Approved",
+      "Rejected",
+      "Completed",
+    ];
 
-        const validStatuses = [
-            "Pending",
-            "Processing",
-            "Approved",
-            "Rejected",
-            "Completed"
-        ];
+    const errors = {};
 
-        const errors = {};
+    if (!status || !status.trim()) {
+      errors.status = "Status is required.";
+    } else if (!validStatuses.includes(status)) {
+      errors.status = "Invalid status.";
+    }
 
-        if (!status || !status.trim()) {
-            errors.status = "Status is required.";
-        } else if (!validStatuses.includes(status)) {
-            errors.status = "Invalid status.";
-        }
+    if (Object.keys(errors).length > 0) {
+      return res.status(422).json({
+        success: false,
+        statusCode: 422,
+        message: "Validation failed.",
+        errors,
+      });
+    }
 
-        if (Object.keys(errors).length > 0) {
-            return res.status(422).json({
-                success: false,
-                statusCode: 422,
-                message: "Validation failed.",
-                errors
-            });
-        }
-
-        try {
-            const result = await pool.query(
-                `
+    try {
+      const result = await pool.query(
+        `
                 UPDATE patient_requisitions
                 SET status = $1,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = $2
                 RETURNING *;
                 `,
-                [status, id]
-            );
+        [status, id],
+      );
 
-            if (result.rowCount === 0) {
-                return sendErrorResponse(
-                    res,
-                    404,
-                    "Patient requisition not found."
-                );
-            }
+      if (result.rowCount === 0) {
+        return sendErrorResponse(res, 404, "Patient requisition not found.");
+      }
 
-            sendSuccessResponse(
-                res,
-                200,
-                "Patient requisition status updated successfully.",
-                result.rows[0]
-            );
-        } catch (error) {
-            sendErrorResponse(
-                res,
-                500,
-                "Failed to update patient requisition status."
-            );
-        }
-    };
-    getPatientRequisitionsHandler = async (req, res) => {
-        try {
-            const result = await pool.query(`
+      sendSuccessResponse(
+        res,
+        200,
+        "Patient requisition status updated successfully.",
+        result.rows[0],
+      );
+    } catch (error) {
+      sendErrorResponse(
+        res,
+        500,
+        "Failed to update patient requisition status.",
+      );
+    }
+  };
+  getPatientRequisitionsHandler = async (req, res) => {
+    try {
+      const result = await pool.query(`
                 SELECT
                     pr.id,
                     pr.patient_id,
@@ -529,59 +565,55 @@ class PatientRequisitionController {
                 ORDER BY pr.created_at DESC;
                 `);
 
-            return sendSuccessResponse(
-                res,
-                200,
-                "Patient requisitions fetched successfully.",
-                result.rows
-            );
-        } catch (error) {
-            sendErrorResponse(
-                res,
-                500,
-                error.message || "Failed to fetch patient requisitions."
-            );
-        }
-    };
-    updatePatientRequisitionEmergencyHandler = async (req, res) => {
-        const { id } = req.params;
-        const { is_emergency, emergency_details } = req.body;
+      return sendSuccessResponse(
+        res,
+        200,
+        "Patient requisitions fetched successfully.",
+        result.rows,
+      );
+    } catch (error) {
+      sendErrorResponse(
+        res,
+        500,
+        error.message || "Failed to fetch patient requisitions.",
+      );
+    }
+  };
+  updatePatientRequisitionEmergencyHandler = async (req, res) => {
+    const { id } = req.params;
+    const { is_emergency, emergency_details } = req.body;
 
-        // Validate path parameter separately
-        if (!id || !Number.isInteger(Number(id)) || Number(id) <= 0) {
-            return sendErrorResponse(
-                res,
-                400,
-                "Invalid patient requisition ID."
-            );
-        }
+    // Validate path parameter separately
+    if (!id || !Number.isInteger(Number(id)) || Number(id) <= 0) {
+      return sendErrorResponse(res, 400, "Invalid patient requisition ID.");
+    }
 
-        const errors = {};
+    const errors = {};
 
-        if (typeof is_emergency !== "boolean") {
-            errors.is_emergency = "Invalid  is_emergency.";
-        }
+    if (typeof is_emergency !== "boolean") {
+      errors.is_emergency = "Invalid  is_emergency.";
+    }
 
-        if (
-            is_emergency === true &&
-            (!emergency_details || !emergency_details.trim())
-        ) {
-            errors.emergency_details =
-                "Emergency details are required when marking as emergency.";
-        }
+    if (
+      is_emergency === true &&
+      (!emergency_details || !emergency_details.trim())
+    ) {
+      errors.emergency_details =
+        "Emergency details are required when marking as emergency.";
+    }
 
-        if (Object.keys(errors).length > 0) {
-            return res.status(422).json({
-                success: false,
-                statusCode: 422,
-                message: "Validation failed.",
-                errors
-            });
-        }
+    if (Object.keys(errors).length > 0) {
+      return res.status(422).json({
+        success: false,
+        statusCode: 422,
+        message: "Validation failed.",
+        errors,
+      });
+    }
 
-        try {
-            const result = await pool.query(
-                `
+    try {
+      const result = await pool.query(
+        `
                 UPDATE patient_requisitions
                 SET
                 is_emergency = $1,
@@ -590,49 +622,37 @@ class PatientRequisitionController {
                     WHERE id = $3
                 RETURNING *;
                 `,
-                [
-                    is_emergency,
-                    is_emergency ? emergency_details.trim() : null,
-                    id
-                ]
-            );
+        [is_emergency, is_emergency ? emergency_details.trim() : null, id],
+      );
 
-            if (result.rowCount === 0) {
-                return sendErrorResponse(
-                    res,
-                    404,
-                    "Patient requisition not found."
-                );
-            }
+      if (result.rowCount === 0) {
+        return sendErrorResponse(res, 404, "Patient requisition not found.");
+      }
 
-            sendSuccessResponse(
-                res,
-                200,
-                "Patient requisition emergency status updated successfully.",
-                result.rows[0]
-            );
-        } catch (error) {
-            sendErrorResponse(
-                res,
-                500,
-                "Failed to update patient requisition emergency status."
-            );
-        }
-    };
-    getPatientRequisitionByIdHandler = async (req, res) => {
-        try {
+      sendSuccessResponse(
+        res,
+        200,
+        "Patient requisition emergency status updated successfully.",
+        result.rows[0],
+      );
+    } catch (error) {
+      sendErrorResponse(
+        res,
+        500,
+        "Failed to update patient requisition emergency status.",
+      );
+    }
+  };
+  getPatientRequisitionByIdHandler = async (req, res) => {
+    try {
+      const { id } = req.params;
 
-            const { id } = req.params;
+      if (!id || isNaN(id) || Number(id) <= 0) {
+        return sendErrorResponse(res, 400, "Invalid patient requisition ID.");
+      }
 
-            if (!id || isNaN(id) || Number(id) <= 0) {
-                return sendErrorResponse(
-                    res,
-                    400,
-                    "Invalid patient requisition ID."
-                );
-            }
-
-            const result = await pool.query(`
+      const result = await pool.query(
+        `
                 SELECT
                     pr.id,
                     pr.patient_id,
@@ -704,34 +724,31 @@ class PatientRequisitionController {
                     ON ind.requisition_id = pr.id
 
                 WHERE pr.id = $1;
-                `, [id]);
+                `,
+        [id],
+      );
 
-            if (result.rowCount === 0) {
-                return sendErrorResponse(
-                    res,
-                    404,
-                    "Patient requisition not found."
-                );
-            }
+      if (result.rowCount === 0) {
+        return sendErrorResponse(res, 404, "Patient requisition not found.");
+      }
 
-            return sendSuccessResponse(
-                res,
-                200,
-                "Patient requisition fetched successfully.",
-                result.rows[0]
-            );
-
-        } catch (error) {
-            return sendErrorResponse(
-                res,
-                500,
-                error.message || "Failed to fetch patient requisition."
-            );
-        }
-    };
-    getRecentPatientRequisitionsHandler = async (req, res) => {
-        try {
-            const result = await pool.query(`
+      return sendSuccessResponse(
+        res,
+        200,
+        "Patient requisition fetched successfully.",
+        result.rows[0],
+      );
+    } catch (error) {
+      return sendErrorResponse(
+        res,
+        500,
+        error.message || "Failed to fetch patient requisition.",
+      );
+    }
+  };
+  getRecentPatientRequisitionsHandler = async (req, res) => {
+    try {
+      const result = await pool.query(`
                 SELECT
                     pr.id,
                     pr.patient_id,
@@ -764,20 +781,20 @@ class PatientRequisitionController {
                 LIMIT 10;
             `);
 
-            return sendSuccessResponse(
-                res,
-                200,
-                "Recent patient requisitions fetched successfully.",
-                result.rows
-            );
-        } catch (error) {
-            return sendErrorResponse(
-                res,
-                500,
-                error.message || "Failed to fetch recent patient requisitions."
-            );
-        }
-    };
+      return sendSuccessResponse(
+        res,
+        200,
+        "Recent patient requisitions fetched successfully.",
+        result.rows,
+      );
+    } catch (error) {
+      return sendErrorResponse(
+        res,
+        500,
+        error.message || "Failed to fetch recent patient requisitions.",
+      );
+    }
+  };
 }
 
 export default PatientRequisitionController;
