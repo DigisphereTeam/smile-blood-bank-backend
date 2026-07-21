@@ -27,8 +27,7 @@ class PatientRequisitionController {
                 components = [],
                 is_emergency = false,
                 compatibility_test_type,
-                physician,
-                name,
+                physician_name,
                 emergency_details
             } = validatedBody;
 
@@ -55,14 +54,13 @@ class PatientRequisitionController {
                     previous_transfusion_reaction_details,
                     is_emergency,
                     compatibility_test_type,
-                    physician,
-                    name,
+                    physician_name,
                     emergency_details,
                     created_by
                 )
                 VALUES (
                     $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
-                    $11,$12,$13,$14,$15,$16,$17,$18,$19,$20
+                    $11,$12,$13,$14,$15,$16,$17,$18,$19
                 )
                 RETURNING *;
                 `,
@@ -83,8 +81,7 @@ class PatientRequisitionController {
                     previous_transfusion_reaction_details ?? null,
                     is_emergency,
                     compatibility_test_type ?? null,
-                    physician ?? null,
-                    name ?? null,
+                    physician_name ?? null,
                     emergency_details ?? null,
                     req.user.id
                 ]
@@ -210,8 +207,7 @@ class PatientRequisitionController {
                 components,
                 is_emergency,
                 compatibility_test_type,
-                physician,
-                name,
+                physician_name,
                 emergency_details
             } = validatedBody;
 
@@ -243,8 +239,7 @@ class PatientRequisitionController {
                 ["previous_transfusion_reaction_details", previous_transfusion_reaction_details],
                 ["is_emergency", is_emergency],
                 ["compatibility_test_type", compatibility_test_type],
-                ["physician", physician],
-                ["name", name],
+                ["physician_name", physician_name],
                 ["emergency_details", emergency_details]
             ].forEach(([col, val]) => addField(col, val));
 
@@ -482,8 +477,7 @@ class PatientRequisitionController {
                     pr.status,
                     pr.is_emergency,
                     pr.compatibility_test_type,
-                    pr.physician,
-                    pr.name,
+                    pr.physician_name,
                     pr.emergency_details,
                     pr.created_at,
                     pr.updated_at,
@@ -655,8 +649,7 @@ class PatientRequisitionController {
                     pr.previous_transfusion,
                     pr.previous_transfusion_reaction,
                     pr.previous_transfusion_reaction_details,
-                    pr.physician,
-                    pr.name,
+                    pr.physician_name,
                     pr.compatibility_test_type,
                     pr.is_emergency,
                     pr.emergency_details,

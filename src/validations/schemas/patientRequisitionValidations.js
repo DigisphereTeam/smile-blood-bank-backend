@@ -135,28 +135,15 @@ export const createPatientRequisitionSchema = Joi.object({
         otherwise: Joi.string().trim().allow("", null)
     }),
 
-    physician: Joi.when("is_emergency", {
+    physician_name: Joi.when("is_emergency", {
         is: true,
         then: Joi.string()
             .trim()
             .required()
             .messages({
-                "any.required": "Physician is required.",
-                "string.base": "Invalid physician.",
-                "string.empty": "Physician is required."
-            }),
-        otherwise: Joi.string().trim().allow("", null)
-    }),
-
-    name: Joi.when("is_emergency", {
-        is: true,
-        then: Joi.string()
-            .trim()
-            .required()
-            .messages({
-                "any.required": "Name is required.",
-                "string.base": "Invalid name.",
-                "string.empty": "Name is required."
+                "any.required": "Physician_name is required.",
+                "string.base": "Invalid physician_name.",
+                "string.empty": "Physician_name is required."
             }),
         otherwise: Joi.string().trim().allow("", null)
     }),
@@ -335,28 +322,15 @@ export const updatePatientRequisitionSchema = Joi.object({
         otherwise: Joi.string().trim().allow("", null)
     }),
 
-    physician: Joi.when("is_emergency", {
+    physician_name: Joi.when("is_emergency", {
         is: true,
         then: Joi.string()
             .trim()
             .required()
             .messages({
-                "any.required": "Physician is required.",
-                "string.base": "Invalid physician.",
-                "string.empty": "Physician is required."
-            }),
-        otherwise: Joi.string().trim().allow("", null)
-    }),
-
-    name: Joi.when("is_emergency", {
-        is: true,
-        then: Joi.string()
-            .trim()
-            .required()
-            .messages({
-                "any.required": "Name is required.",
-                "string.base": "Invalid name.",
-                "string.empty": "Name is required."
+                "any.required": "Physician name is required.",
+                "string.base": "Invalid physician name.",
+                "string.empty": "Physician name is required."
             }),
         otherwise: Joi.string().trim().allow("", null)
     }),
