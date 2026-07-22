@@ -213,9 +213,9 @@ class AuthController {
     }
   };
   resetPassword = async (req, res) => {
-    validateRequest(resetPasswordSchema, req);
+    const validatedBody = validateRequest(resetPasswordSchema, req);
     try {
-      const { email, password, confirm_password } = req.body;
+      const { email, password, confirm_password } = validatedBody;
 
       if (password !== confirm_password) {
         return res.status(400).json({
