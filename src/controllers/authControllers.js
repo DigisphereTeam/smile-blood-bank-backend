@@ -8,13 +8,12 @@ import {
 } from "../utils/sendResponse.js";
 import {
   createUserSchema,
-  userLoginSchema,
   forgotPasswordSchema,
-    verifyForgotPasswordOtpSchema,
-    resetPasswordSchema,
+  resetPasswordSchema,
+  userLoginSchema,
+  verifyForgotPasswordOtpSchema,
 } from "../validations/schemas/authValidations.js";
 import validateRequest from "../validations/validateRequest.js";
-import { sendforgotpasswordOtpMail } from "../utils/mailconfig.js";
 
 class AuthController {
   createUserHandlers = async (req, res) => {
@@ -81,9 +80,9 @@ class AuthController {
     }
   };
   userLoginHandlers = async (req, res) => {
-    validateRequest(userLoginSchema, req);
+    const validatedBody = validateRequest(userLoginSchema, req);
     try {
-      const { email, password } = req.body;
+      const { email, password } = validatedBody;
       const result = await pool.query(
         `
                     SELECT *
@@ -132,12 +131,9 @@ class AuthController {
     }
   };
   forgotPassword = async (req, res) => {
-    validateRequest(forgotPasswordSchema, req);
+    const validatedBody = validateRequest(forgotPasswordSchema, req);
     try {
-      const { email } = req.body;
-      if (!email) {
-        return sendErrorResponse(res, 400, "Email is required");
-      }
+      const { email } = validatedBody;
 
       const user = await pool.query(
         "SELECT id , email FROM users WHERE email = $1",
@@ -176,50 +172,46 @@ class AuthController {
     }
   };
   verifyForgotPasswordOtp = async (req, res) => {
-    validateRequest(verifyForgotPasswordOtpSchema, req);
+    const validatedBody = validateRequest(verifyForgotPasswordOtpSchema, req);
 
     try {
-        const { email, otp } = req.body;
+      const { email, otp } = validatedBody;
 
-        if (!email || !otp) {
-            return sendErrorResponse(res, 400, "Email and OTP are required");
-        }
+      // Fixed OTP verification
+      if (otp !== "1234") {
+        return res.status(400).json({
+          statusCode: 400,
+          message: "Invalid OTP"
+        });
+      }
 
-        // Fixed OTP verification
-        if (otp !== "1234") {
-            return res.status(400).json({
-                statusCode: 400,
-                message: "Invalid OTP"
-            });
-        }
-
-        const result = await pool.query(
-            `SELECT id, email
+      const result = await pool.query(
+        `SELECT id, email
              FROM users
              WHERE email = $1`,
-            [email]
-        );
+        [email]
+      );
 
-        if (result.rows.length === 0) {
-            return res.status(404).json({
-                statusCode: 404,
-                message: "User not found"
-            });
-        }
-
-        return res.status(200).json({
-            statusCode: 200,
-            message: "OTP verified successfully",
-            data: result.rows[0]
+      if (result.rows.length === 0) {
+        return res.status(404).json({
+          statusCode: 404,
+          message: "User not found"
         });
+      }
+
+      return res.status(200).json({
+        statusCode: 200,
+        message: "OTP verified successfully",
+        data: result.rows[0]
+      });
 
     } catch (error) {
-        return res.status(500).json({
-            statusCode: 500,
-            message: error.message || "Internal Server Error"
-        });
+      return res.status(500).json({
+        statusCode: 500,
+        message: error.message || "Internal Server Error"
+      });
     }
-};
+  };
   resetPassword = async (req, res) => {
     validateRequest(resetPasswordSchema, req);
     try {
