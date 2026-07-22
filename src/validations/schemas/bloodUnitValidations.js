@@ -135,6 +135,130 @@ export const createDonorWithBloodUnitSchema = Joi.object({
     }),
 });
 
+
+export const updateDonorWithBloodUnitSchema = Joi.object({
+  name: Joi.string().trim().messages({
+    "string.base": "Invalid name.",
+    "string.empty": "Name cannot be empty."
+  }),
+
+  gender: Joi.string()
+    .trim()
+    .valid("Male", "Female", "Other")
+    .messages({
+      "string.base": "Invalid gender.",
+      "any.only": "Invalid gender."
+    }),
+
+  age: Joi.number()
+    .integer()
+    .min(18)
+    .max(65)
+    .allow(null)
+    .messages({
+      "number.base": "Invalid age.",
+      "number.integer": "Invalid age.",
+      "number.min": "Age must be at least 18 years.",
+      "number.max": "Age must not exceed 65 years."
+    }),
+
+  blood_group: Joi.string()
+    .trim()
+    .uppercase()
+    .valid("A", "B", "AB", "O")
+    .messages({
+      "string.base": "Invalid blood group.",
+      "any.only": "Invalid blood group."
+    }),
+
+  rh_type: Joi.string()
+    .trim()
+    .valid("+", "-")
+    .messages({
+      "string.base": "Invalid Rh type.",
+      "any.only": "Invalid Rh type."
+    }),
+
+  phone_number: Joi.string()
+    .trim()
+    .pattern(/^[0-9]{10}$/)
+    .messages({
+      "string.base": "Invalid phone number.",
+      "string.pattern.base": "Phone number must contain exactly 10 digits."
+    }),
+
+  email: Joi.string()
+    .trim()
+    .email()
+    .allow("", null)
+    .messages({
+      "string.base": "Invalid email address.",
+      "string.email": "Invalid email address."
+    }),
+
+  address: Joi.string()
+    .trim()
+    .allow("", null)
+    .messages({
+      "string.base": "Invalid address."
+    }),
+
+  weight: Joi.number()
+    .positive()
+    .allow(null)
+    .messages({
+      "number.base": "Invalid weight.",
+      "number.positive": "Weight must be greater than 0."
+    }),
+
+  hemoglobin: Joi.number()
+    .positive()
+    .allow(null)
+    .messages({
+      "number.base": "Invalid hemoglobin.",
+      "number.positive": "Hemoglobin must be greater than 0."
+    }),
+
+  last_donation_date: Joi.date()
+    .allow(null)
+    .messages({
+      "date.base": "Invalid last donation date."
+    }),
+
+  collection_date: Joi.date()
+    .messages({
+      "date.base": "Invalid collection date."
+    }),
+
+  volume_ml: Joi.number()
+    .integer()
+    .positive()
+    .messages({
+      "number.base": "Invalid volume.",
+      "number.integer": "Invalid volume.",
+      "number.positive": "Volume must be greater than 0."
+    }),
+
+  remarks: Joi.string()
+    .trim()
+    .allow("", null)
+    .messages({
+      "string.base": "Invalid remarks."
+    }),
+
+  donation_type: Joi.string()
+    .trim()
+    .valid("Voluntary", "Replacement")
+    .messages({
+      "string.base": "Donation type must be a string.",
+      "any.only": "Donation type must be either 'Voluntary' or 'Replacement'."
+    })
+})
+.min(1)
+.messages({
+  "object.min": "At least one field is required for update."
+});
+
 export const updateBloodUnitStatusSchema = Joi.object({
   status: Joi.string()
     .trim()

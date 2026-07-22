@@ -19,6 +19,13 @@ donorRoutes.post(
     donorController.createDonorWithBloodUnitHandler
 );
 
+donorRoutes.patch(
+    "/with-blood-unit/:id",
+    verifyToken,
+    requireRequestBody,
+    donorController.updateDonorWithBloodUnitHandler
+);
+
 donorRoutes.get(
     "/",
     verifyToken,
