@@ -172,7 +172,8 @@ class DonorController {
                 last_donation_date,
                 collection_date,
                 volume_ml,
-                remarks
+                remarks,
+                donation_type
             } = validatedBody;
 
             // Check duplicate donor
@@ -220,11 +221,12 @@ class DonorController {
                 weight,
                 hemoglobin,
                 last_donation_date,
+                donation_type,
                 created_by
             )
             VALUES
             (
-                $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13
+                $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14
             )
             RETURNING *;
             `,
@@ -241,6 +243,7 @@ class DonorController {
                     weight || null,
                     hemoglobin || null,
                     last_donation_date || null,
+                    donation_type || null,
                     req.user.id
                 ]
             );
